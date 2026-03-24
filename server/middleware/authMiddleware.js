@@ -19,6 +19,7 @@ exports.verifyToken = (req, res, next) => {
     }
 };
 
+//Only for Admin
 exports.requireAdmin = (req, res, next) => {
     if (req.user.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Access Denied. Admin privileges required.' });
