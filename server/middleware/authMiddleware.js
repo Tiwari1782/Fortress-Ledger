@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 
+//Verify JWT Token
 exports.verifyToken = (req, res, next) => {
     // Read the token from the HTTP-Only cookie
     const token = req.cookies.token;
