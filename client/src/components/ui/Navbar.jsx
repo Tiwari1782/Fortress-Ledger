@@ -1,4 +1,4 @@
-import { Shield, Moon, Sun, LogOut, LayoutDashboard } from 'lucide-react';
+import { Shield, Moon, Sun, LogOut, LayoutDashboard, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -21,17 +21,20 @@ export default function Navbar() {
                     </span>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     <button onClick={toggleTheme} className="p-2.5 rounded-xl border transition-all" style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)', background: 'var(--bg-card)' }}>
                         {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
                     </button>
                     
                     {user ? (
                         <>
-                            <button onClick={() => navigate(user.role === 'ADMIN' ? '/admin' : '/dashboard')} className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl border transition-all" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}>
+                            <button onClick={() => navigate(user.role === 'ADMIN' ? '/admin' : '/dashboard')} className="hidden sm:flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl border transition-all hover:opacity-80" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}>
                                 <LayoutDashboard size={16} style={{ color: 'var(--brand-primary)' }}/> Dashboard
                             </button>
-                            <button onClick={logout} className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all bg-rose-600 hover:bg-rose-700">
+                            <button onClick={() => navigate('/profile')} className="hidden sm:flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl border transition-all hover:opacity-80" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}>
+                                <User size={16} style={{ color: 'var(--brand-primary)' }}/> Profile
+                            </button>
+                            <button onClick={logout} className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all bg-rose-600 hover:bg-rose-700">
                                 <LogOut size={16} /> Logout
                             </button>
                         </>
