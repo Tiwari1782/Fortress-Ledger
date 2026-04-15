@@ -34,6 +34,13 @@ import {
   History,
   TerminalSquare,
   Trash2,
+  Trophy,
+  Medal,
+  TrendingUp,
+  Download,
+  HardDrive,
+  Database,
+  Crown,
 } from "lucide-react";
 import {
   AreaChart,
@@ -102,6 +109,14 @@ export default function Admin() {
   const [allUsers, setAllUsers] = useState([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
+  // Window Functions Analytics States
+  const [windowData, setWindowData] = useState(null);
+  const [windowLoading, setWindowLoading] = useState(false);
+
+  // Database Backup States
+  const [backupInfo, setBackupInfo] = useState(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+
   useEffect(() => {
     if (!user || user.role !== "ADMIN") navigate("/dashboard");
     else fetchData();
@@ -158,6 +173,12 @@ export default function Admin() {
         .get("/admin/users")
         .then((res) => setAllUsers(res.data))
         .catch((e) => console.error("Users Error:", e));
+
+      // Backup Info
+      api
+        .get("/admin/backup/info")
+        .then((res) => setBackupInfo(res.data))
+        .catch((e) => console.error("Backup Info Error:", e));
     } catch (err) {
       if (
         err.response &&
@@ -1652,7 +1673,7 @@ export default function Admin() {
                   </thead>
                   <tbody>
                     {allUsers.map((u, i) => (
-                      <tr key={i} className="border-b hover:bg-[var(--bg-hover)] transition-colors" style={{ borderColor: 'var(--border-default)' }}>
+                      <tr key={i} className="border-b hover:bg-[var(--bg-hover)] transition-colors cursor-pointer" style={{ borderColor: 'var(--border-default)' }} onClick={() => navigate(`/admin/user/${u.id}`)}>
                         <td className="py-3 px-2">
                           <p className="font-bold truncate max-w-[180px]" style={{ color: 'var(--text-primary)' }}>{u.email}</p>
                           <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{u.role} • ID:{u.id}</p>
@@ -1665,7 +1686,10 @@ export default function Admin() {
                           </span>
                         </td>
                         <td className="py-3 px-2 text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => navigate(`/admin/user/${u.id}`)} className="p-1.5 rounded-lg border hover:opacity-70 transition-all" style={{ borderColor: 'var(--border-default)', color: 'var(--brand-primary)' }} title="View Details">
+                              <Eye size={12} />
+                            </button>
                             {u.account_id && (
                               <button onClick={() => confirmFreeze(u.account_id, u.account_no, u.status)} className="p-1.5 rounded-lg border hover:opacity-70 transition-all" style={{ borderColor: 'var(--border-default)', color: u.status === 'ACTIVE' ? '#e11d48' : '#10b981' }} title={u.status === 'ACTIVE' ? 'Freeze' : 'Unfreeze'}>
                                 {u.status === 'ACTIVE' ? <Lock size={12} /> : <Unlock size={12} />}
@@ -1684,6 +1708,212 @@ export default function Admin() {
                 </table>
               </div>
             </motion.div>
+
+        </div>
+
+        {/* ROW 8: Window Functions Analytics + Database Backup */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+
+          {/* Window Functions Leaderboard */}
+          <motion.div initial="hidden" animate="visible" custom={18} variants={fadeUp} className="lg:col-span-2 rounded-3xl border p-6 glass" style={{ borderColor: 'var(--border-default)' }}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                <Trophy size={18} style={{ color: '#f59e0b' }} /> Window Functions Leaderboard
+              </h3>
+              <button
+                onClick={async () => {
+                  setWindowLoading(true);
+                  try {
+                    const res = await api.get('/admin/window-analytics');
+                    setWindowData(res.data);
+                  } catch (e) {
+                    toast.error('Failed to load window analytics');
+                  } finally {
+                    setWindowLoading(false);
+                  }
+                }}
+                disabled={windowLoading}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#f59e0b' }}
+              >
+                {windowLoading ? <Activity size={12} className="animate-spin" /> : <TrendingUp size={12} />}
+                {windowLoading ? 'Computing...' : 'Run Analytics'}
+              </button>
+            </div>
+            <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Uses <span className="font-mono text-[var(--brand-primary)]">RANK()</span>, <span className="font-mono text-[var(--brand-primary)]">DENSE_RANK()</span>, <span className="font-mono text-[var(--brand-primary)]">NTILE(4)</span>, <span className="font-mono text-[var(--brand-primary)]">LAG()</span>, <span className="font-mono text-[var(--brand-primary)]">LEAD()</span>, <span className="font-mono text-[var(--brand-primary)]">ROW_NUMBER()</span>, and <span className="font-mono text-[var(--brand-primary)]">SUM() OVER</span> window functions.
+            </p>
+
+            {windowData ? (
+              <div className="space-y-6">
+                {/* Leaderboard Table */}
+                <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--border-default)' }}>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                        <th className="py-2.5 px-3 text-left font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>RANK()</th>
+                        <th className="py-2.5 px-3 text-left font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Entity</th>
+                        <th className="py-2.5 px-3 text-right font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Balance</th>
+                        <th className="py-2.5 px-3 text-center font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>NTILE(4)</th>
+                        <th className="py-2.5 px-3 text-right font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>% of Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {windowData.leaderboard.map((row, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-[var(--bg-hover)] transition-colors" style={{ borderColor: 'var(--border-default)' }}>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-2">
+                              {row.wealth_rank <= 3 ? (
+                                <Crown size={14} style={{ color: row.wealth_rank === 1 ? '#f59e0b' : row.wealth_rank === 2 ? '#94a3b8' : '#cd7c32' }} />
+                              ) : (
+                                <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>#{row.wealth_rank}</span>
+                              )}
+                              <span className="font-mono font-bold" style={{ color: row.wealth_rank <= 3 ? '#f59e0b' : 'var(--text-primary)' }}>#{row.wealth_rank}</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <p className="font-bold truncate max-w-[140px]" style={{ color: 'var(--text-primary)' }}>{row.email}</p>
+                            <p className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>{row.account_no}</p>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold shimmer-text">${parseFloat(row.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                              row.quartile === 1 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
+                              row.quartile === 2 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' :
+                              row.quartile === 3 ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                              'bg-slate-500/10 text-slate-400 border-slate-500/30'
+                            }`}>Q{row.quartile}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-xs" style={{ color: 'var(--brand-primary)' }}>{row.pct_of_total}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Quartile Summary */}
+                {windowData.quartile_summary?.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>NTILE(4) Quartile Distribution</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {windowData.quartile_summary.map((q, i) => (
+                        <div key={i} className="p-3 rounded-xl border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                              q.quartile === 1 ? 'bg-amber-500/10 text-amber-500' :
+                              q.quartile === 2 ? 'bg-emerald-500/10 text-emerald-500' :
+                              q.quartile === 3 ? 'bg-blue-500/10 text-blue-400' :
+                              'bg-slate-500/10 text-slate-400'
+                            }`}>Q{q.quartile} {q.quartile === 1 ? '(Top)' : q.quartile === 4 ? '(Bottom)' : ''}</span>
+                          </div>
+                          <p className="text-lg font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>{q.account_count}</p>
+                          <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Avg: ${parseFloat(q.avg_balance).toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Window Functions Used Badge */}
+                <div className="flex flex-wrap gap-2">
+                  {windowData.window_functions_used.map((fn, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold border" style={{ background: 'var(--bg-base)', borderColor: 'var(--border-default)', color: '#f59e0b' }}>
+                      {fn}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[200px] flex flex-col items-center justify-center gap-3" style={{ color: 'var(--text-secondary)' }}>
+                <Trophy size={40} className="opacity-20" />
+                <p className="text-xs font-bold uppercase tracking-wider">Click "Run Analytics" to execute window functions</p>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Database Backup Panel */}
+          <motion.div initial="hidden" animate="visible" custom={19} variants={fadeUp} className="rounded-3xl border p-6 glass" style={{ borderColor: 'var(--border-default)' }}>
+            <div className="flex items-center gap-2 mb-4 font-bold" style={{ color: 'var(--text-primary)' }}>
+              <HardDrive size={18} style={{ color: 'var(--brand-primary)' }} /> Database Backup
+            </div>
+            <p className="text-xs mb-5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Export a complete SQL dump including all tables, views, triggers, stored procedures, and events.
+            </p>
+
+            {/* Backup Info Stats */}
+            {backupInfo && (
+              <div className="space-y-3 mb-5">
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Tables', value: backupInfo.summary.table_count, icon: <Database size={12} /> },
+                    { label: 'Views', value: backupInfo.summary.view_count, icon: <Eye size={12} /> },
+                    { label: 'Triggers', value: backupInfo.summary.trigger_count, icon: <Activity size={12} /> },
+                    { label: 'Procedures', value: backupInfo.summary.procedure_count, icon: <Server size={12} /> },
+                    { label: 'Events', value: backupInfo.summary.event_count, icon: <History size={12} /> },
+                    { label: 'Functions', value: backupInfo.summary.function_count, icon: <Layers size={12} /> },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 rounded-lg border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                      <span style={{ color: 'var(--brand-primary)' }}>{item.icon}</span>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase" style={{ color: 'var(--text-secondary)' }}>{item.label}</p>
+                        <p className="text-sm font-extrabold font-mono" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 rounded-xl border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                  <div className="flex justify-between text-[10px] font-bold" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Total Rows</span>
+                    <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{backupInfo.summary.total_rows?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] font-bold mt-1" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Database Size</span>
+                    <span className="font-mono" style={{ color: 'var(--brand-primary)' }}>{backupInfo.summary.total_size_mb} MB</span>
+                  </div>
+                </div>
+
+                {/* Table List */}
+                <div className="max-h-[120px] overflow-y-auto space-y-1">
+                  {backupInfo.tables.map((t, i) => (
+                    <div key={i} className="flex justify-between items-center px-2 py-1 rounded text-[10px] font-mono" style={{ background: 'var(--bg-base)' }}>
+                      <span style={{ color: 'var(--text-primary)' }}>{t.name}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{t.rows} rows</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Download Button */}
+            <button
+              onClick={async () => {
+                setBackupLoading(true);
+                try {
+                  const res = await api.get('/admin/backup', { responseType: 'blob' });
+                  const blob = new Blob([res.data], { type: 'application/sql' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `fortress_ledger_backup_${new Date().toISOString().slice(0,10)}.sql`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  toast.success('Database backup downloaded successfully');
+                } catch (e) {
+                  toast.error('Backup generation failed');
+                } finally {
+                  setBackupLoading(false);
+                }
+              }}
+              disabled={backupLoading}
+              className="w-full py-3.5 rounded-xl text-sm font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ background: 'var(--brand-primary)' }}
+            >
+              {backupLoading ? <Activity size={14} className="animate-spin" /> : <Download size={14} />}
+              {backupLoading ? 'Generating Backup...' : 'Export SQL Dump'}
+            </button>
+          </motion.div>
 
         </div>
 

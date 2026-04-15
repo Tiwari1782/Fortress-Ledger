@@ -33,6 +33,15 @@ router.get('/system-monitor', adminController.getSystemMonitor);
 
 // User Management Routes
 router.get('/users', adminController.getAllUsers);
+router.get('/user/:id', adminController.getUserDetail);
 router.delete('/user/:id', adminController.deleteUser);
+router.patch('/user/:id/reset-password', adminController.resetUserPassword);
+
+// Window Functions Analytics
+router.get('/window-analytics', adminController.getWindowAnalytics);
+
+// Database Backup / Export
+router.get('/backup', adminController.getDatabaseBackup);
+router.get('/backup/info', adminController.getBackupInfo);
 
 module.exports = router;

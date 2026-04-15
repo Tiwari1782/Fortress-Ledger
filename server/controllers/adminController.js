@@ -485,4 +485,449 @@ exports.deleteUser = async (req, res) => {
     }
 };
 
+// ============================================================================
+// USER DETAIL & PASSWORD MANAGEMENT
+// ============================================================================
+
+// GET /api/admin/user/:id — Full user detail with transaction stats
+exports.getUserDetail = async (req, res) => {
+    const userId = req.params.id;
+    try {
+        // Get user info
+        const [users] = await db.execute(
+            'SELECT id, email, role, created_at FROM users WHERE id = ?',
+            [userId]
+        );
+        if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        // Get account info
+        const [accounts] = await db.execute(
+            'SELECT id, account_no, balance, status, created_at FROM accounts WHERE user_id = ?',
+            [userId]
+        );
+
+        const account = accounts.length > 0 ? accounts[0] : null;
+
+        // Get transaction statistics if account exists
+        let txStats = { total_transactions: 0, total_sent: 0, total_received: 0, sent_count: 0, received_count: 0 };
+        let recentTransactions = [];
+        let lastActive = null;
+
+        if (account) {
+            const [stats] = await db.execute(`
+                SELECT 
+                    COUNT(*) as total_transactions,
+                    COALESCE(SUM(CASE WHEN sender_id = ? THEN amount ELSE 0 END), 0) as total_sent,
+                    COALESCE(SUM(CASE WHEN receiver_id = ? THEN amount ELSE 0 END), 0) as total_received,
+                    COALESCE(SUM(CASE WHEN sender_id = ? THEN 1 ELSE 0 END), 0) as sent_count,
+                    COALESCE(SUM(CASE WHEN receiver_id = ? THEN 1 ELSE 0 END), 0) as received_count
+                FROM transactions 
+                WHERE sender_id = ? OR receiver_id = ?
+            `, [account.id, account.id, account.id, account.id, account.id, account.id]);
+            txStats = stats[0];
+
+            // Get recent transactions
+            const [recent] = await db.execute(`
+                SELECT t.id, t.amount, t.type, t.created_at,
+                       s.account_no as sender_account,
+                       r.account_no as receiver_account
+                FROM transactions t
+                LEFT JOIN accounts s ON t.sender_id = s.id
+                LEFT JOIN accounts r ON t.receiver_id = r.id
+                WHERE t.sender_id = ? OR t.receiver_id = ?
+                ORDER BY t.created_at DESC
+                LIMIT 20
+            `, [account.id, account.id]);
+            recentTransactions = recent;
+
+            // Get last active
+            const [lastTx] = await db.execute(`
+                SELECT created_at FROM transactions 
+                WHERE sender_id = ? OR receiver_id = ?
+                ORDER BY created_at DESC LIMIT 1
+            `, [account.id, account.id]);
+            lastActive = lastTx.length > 0 ? lastTx[0].created_at : null;
+        }
+
+        // Get audit log entries related to this user's account
+        let auditEntries = [];
+        if (account) {
+            try {
+                const [audits] = await db.execute(
+                    `SELECT id, action, old_value, new_value, timestamp 
+                     FROM audit_logs WHERE entity_id = ? 
+                     ORDER BY timestamp DESC LIMIT 15`,
+                    [account.id]
+                );
+                auditEntries = audits;
+            } catch (e) {
+                // audit_logs schema may vary
+            }
+        }
+
+        res.json({
+            user: users[0],
+            account,
+            stats: txStats,
+            recent_transactions: recentTransactions,
+            last_active: lastActive,
+            audit_entries: auditEntries
+        });
+    } catch (error) {
+        console.error('User Detail Error:', error);
+        res.status(500).json({ error: 'Server error retrieving user details' });
+    }
+};
+
+// PATCH /api/admin/user/:id/reset-password — Admin resets a user's password
+exports.resetUserPassword = async (req, res) => {
+    const userId = req.params.id;
+    const { new_password } = req.body;
+
+    if (!new_password || new_password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    try {
+        // Check user exists
+        const [users] = await db.execute('SELECT id, email, role FROM users WHERE id = ?', [userId]);
+        if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        // Hash new password
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+
+        // Update password
+        await db.execute('UPDATE users SET password_hash = ? WHERE id = ?', [hashedPassword, userId]);
+
+        // Audit log
+        try {
+            await db.execute('SET @current_user_id = ?', [req.user.id]);
+            await db.execute(
+                `INSERT INTO audit_logs (action, entity_id, old_value, new_value) 
+                 VALUES (?, ?, ?, ?)`,
+                ['PASSWORD_RESET', userId, 'REDACTED', `Reset by admin for ${users[0].email}`]
+            );
+        } catch (dbErr) {
+            console.log('Audit log failsafe:', dbErr.message);
+        }
+
+        res.json({ message: `Password for ${users[0].email} has been reset successfully` });
+    } catch (error) {
+        console.error('Password Reset Error:', error);
+        res.status(500).json({ error: 'Server error resetting password' });
+    }
+};
+
+// ============================================================================
+// WINDOW FUNCTIONS ANALYTICS
+// ============================================================================
+
+// GET /api/admin/window-analytics — RANK, DENSE_RANK, NTILE, LAG window functions
+exports.getWindowAnalytics = async (req, res) => {
+    try {
+        // 1. Wealth Leaderboard — RANK() and DENSE_RANK()
+        const [leaderboard] = await db.execute(`
+            SELECT 
+                a.account_no,
+                u.email,
+                a.balance,
+                a.status,
+                RANK() OVER (ORDER BY a.balance DESC) as wealth_rank,
+                DENSE_RANK() OVER (ORDER BY a.balance DESC) as dense_rnk,
+                NTILE(4) OVER (ORDER BY a.balance DESC) as quartile,
+                ROUND(a.balance / SUM(a.balance) OVER () * 100, 2) as pct_of_total
+            FROM accounts a
+            JOIN users u ON a.user_id = u.id
+            WHERE a.status = 'ACTIVE'
+            ORDER BY a.balance DESC
+            LIMIT 20
+        `);
+
+        // 2. Balance Change Trends — LAG() and LEAD()
+        const [balanceTrends] = await db.execute(`
+            SELECT 
+                a.account_no,
+                t.created_at,
+                t.amount,
+                t.type,
+                CASE 
+                    WHEN t.sender_id = a.id THEN -t.amount 
+                    ELSE t.amount 
+                END as net_amount,
+                LAG(t.amount, 1) OVER (PARTITION BY a.id ORDER BY t.created_at) as prev_tx_amount,
+                LEAD(t.amount, 1) OVER (PARTITION BY a.id ORDER BY t.created_at) as next_tx_amount,
+                ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY t.created_at DESC) as tx_recency
+            FROM transactions t
+            JOIN accounts a ON (t.sender_id = a.id OR t.receiver_id = a.id)
+            WHERE t.created_at >= NOW() - INTERVAL 7 DAY
+            ORDER BY t.created_at DESC
+            LIMIT 50
+        `);
+
+        // 3. Quartile Summary — aggregate NTILE results
+        const [quartileSummary] = await db.execute(`
+            SELECT 
+                quartile,
+                COUNT(*) as account_count,
+                ROUND(MIN(balance), 2) as min_balance,
+                ROUND(MAX(balance), 2) as max_balance,
+                ROUND(AVG(balance), 2) as avg_balance,
+                ROUND(SUM(balance), 2) as total_balance
+            FROM (
+                SELECT 
+                    a.balance,
+                    NTILE(4) OVER (ORDER BY a.balance DESC) as quartile
+                FROM accounts a
+                WHERE a.status = 'ACTIVE'
+            ) ranked
+            GROUP BY quartile
+            ORDER BY quartile
+        `);
+
+        // 4. Running totals — cumulative SUM window
+        const [runningTotals] = await db.execute(`
+            SELECT 
+                DATE(t.created_at) as tx_date,
+                COUNT(*) as daily_count,
+                SUM(t.amount) as daily_volume,
+                SUM(COUNT(*)) OVER (ORDER BY DATE(t.created_at)) as cumulative_count,
+                SUM(SUM(t.amount)) OVER (ORDER BY DATE(t.created_at)) as cumulative_volume
+            FROM transactions t
+            WHERE t.created_at >= NOW() - INTERVAL 30 DAY
+            GROUP BY DATE(t.created_at)
+            ORDER BY tx_date
+        `);
+
+        res.json({
+            leaderboard,
+            balance_trends: balanceTrends,
+            quartile_summary: quartileSummary,
+            running_totals: runningTotals,
+            window_functions_used: [
+                'RANK()', 'DENSE_RANK()', 'NTILE(4)', 
+                'LAG()', 'LEAD()', 'ROW_NUMBER()',
+                'SUM() OVER', 'Cumulative SUM() OVER'
+            ]
+        });
+    } catch (error) {
+        console.error('Window Analytics Error:', error);
+        res.status(500).json({ error: 'Server error running window function analytics' });
+    }
+};
+
+
+// ============================================================================
+// DATABASE BACKUP / EXPORT
+// ============================================================================
+
+// GET /api/admin/backup — Generate SQL dump of the entire database
+exports.getDatabaseBackup = async (req, res) => {
+    try {
+        let sql = '';
+        sql += '-- ============================================================================\n';
+        sql += '-- FortressLedger Database Backup\n';
+        sql += `-- Generated: ${new Date().toISOString()}\n`;
+        sql += '-- Engine: MySQL 8+ / InnoDB\n';
+        sql += '-- ============================================================================\n\n';
+        sql += 'SET FOREIGN_KEY_CHECKS = 0;\n';
+        sql += 'SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";\n\n';
+
+        // Get all tables
+        const [tables] = await db.execute(
+            `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+
+        for (const table of tables) {
+            const tableName = table.TABLE_NAME;
+            
+            // Get CREATE TABLE statement
+            const [createResult] = await db.execute(`SHOW CREATE TABLE \`${tableName}\``);
+            sql += `-- Table: ${tableName}\n`;
+            sql += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
+            sql += createResult[0]['Create Table'] + ';\n\n';
+
+            // Get row data
+            const [rows] = await db.execute(`SELECT * FROM \`${tableName}\``);
+            if (rows.length > 0) {
+                const columns = Object.keys(rows[0]);
+                const colList = columns.map(c => `\`${c}\``).join(', ');
+                
+                sql += `-- Data for ${tableName} (${rows.length} rows)\n`;
+                
+                // Batch inserts for performance
+                const batchSize = 100;
+                for (let i = 0; i < rows.length; i += batchSize) {
+                    const batch = rows.slice(i, i + batchSize);
+                    const values = batch.map(row => {
+                        const vals = columns.map(col => {
+                            const val = row[col];
+                            if (val === null) return 'NULL';
+                            if (val instanceof Date) return `'${val.toISOString().slice(0, 19).replace('T', ' ')}'`;
+                            if (typeof val === 'number') return val;
+                            return `'${String(val).replace(/'/g, "''").replace(/\\/g, '\\\\')}'`;
+                        });
+                        return `(${vals.join(', ')})`;
+                    }).join(',\n  ');
+                    
+                    sql += `INSERT INTO \`${tableName}\` (${colList}) VALUES\n  ${values};\n`;
+                }
+                sql += '\n';
+            }
+        }
+
+        // Get views
+        const [views] = await db.execute(
+            `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = ?`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        if (views.length > 0) {
+            sql += '-- ============================================================================\n';
+            sql += '-- VIEWS\n';
+            sql += '-- ============================================================================\n\n';
+            for (const view of views) {
+                try {
+                    const [viewDef] = await db.execute(`SHOW CREATE VIEW \`${view.TABLE_NAME}\``);
+                    sql += `DROP VIEW IF EXISTS \`${view.TABLE_NAME}\`;\n`;
+                    sql += viewDef[0]['Create View'] + ';\n\n';
+                } catch (e) {
+                    sql += `-- Could not export view: ${view.TABLE_NAME}\n\n`;
+                }
+            }
+        }
+
+        // Get triggers
+        const [triggers] = await db.execute(`SHOW TRIGGERS`);
+        if (triggers.length > 0) {
+            sql += '-- ============================================================================\n';
+            sql += '-- TRIGGERS\n';
+            sql += '-- ============================================================================\n\n';
+            sql += 'DELIMITER //\n';
+            for (const trigger of triggers) {
+                sql += `\nDROP TRIGGER IF EXISTS \`${trigger.Trigger}\`;\n`;
+                sql += `CREATE TRIGGER \`${trigger.Trigger}\` ${trigger.Timing} ${trigger.Event} ON \`${trigger.Table}\`\nFOR EACH ROW\n${trigger.Statement} //\n`;
+            }
+            sql += '\nDELIMITER ;\n\n';
+        }
+
+        // Get stored procedures
+        const [procedures] = await db.execute(
+            `SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'PROCEDURE'`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        if (procedures.length > 0) {
+            sql += '-- ============================================================================\n';
+            sql += '-- STORED PROCEDURES\n';
+            sql += '-- ============================================================================\n\n';
+            for (const proc of procedures) {
+                try {
+                    const [procDef] = await db.execute(`SHOW CREATE PROCEDURE \`${proc.ROUTINE_NAME}\``);
+                    sql += `DROP PROCEDURE IF EXISTS \`${proc.ROUTINE_NAME}\`;\n`;
+                    sql += 'DELIMITER //\n';
+                    sql += procDef[0]['Create Procedure'] + ' //\n';
+                    sql += 'DELIMITER ;\n\n';
+                } catch (e) {
+                    sql += `-- Could not export procedure: ${proc.ROUTINE_NAME}\n`;
+                }
+            }
+        }
+
+        // Get events
+        const [events] = await db.execute(
+            `SELECT EVENT_NAME FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA = ?`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        if (events.length > 0) {
+            sql += '-- ============================================================================\n';
+            sql += '-- EVENTS\n';
+            sql += '-- ============================================================================\n\n';
+            for (const evt of events) {
+                try {
+                    const [evtDef] = await db.execute(`SHOW CREATE EVENT \`${evt.EVENT_NAME}\``);
+                    sql += `DROP EVENT IF EXISTS \`${evt.EVENT_NAME}\`;\n`;
+                    sql += 'DELIMITER //\n';
+                    sql += evtDef[0]['Create Event'] + ' //\n';
+                    sql += 'DELIMITER ;\n\n';
+                } catch (e) {
+                    sql += `-- Could not export event: ${evt.EVENT_NAME}\n`;
+                }
+            }
+        }
+
+        sql += '\nSET FOREIGN_KEY_CHECKS = 1;\n';
+        sql += `-- Backup complete: ${tables.length} tables, ${views.length} views, ${triggers.length} triggers, ${procedures.length} procedures, ${events.length} events\n`;
+
+        // Send as downloadable SQL file
+        res.setHeader('Content-Type', 'application/sql');
+        res.setHeader('Content-Disposition', `attachment; filename="fortress_ledger_backup_${new Date().toISOString().slice(0,10)}.sql"`);
+        res.send(sql);
+    } catch (error) {
+        console.error('Backup Error:', error);
+        res.status(500).json({ error: 'Server error generating database backup' });
+    }
+};
+
+// GET /api/admin/backup/info — Returns DB metadata without downloading
+exports.getBackupInfo = async (req, res) => {
+    try {
+        const [tables] = await db.execute(
+            `SELECT TABLE_NAME, TABLE_ROWS, DATA_LENGTH, INDEX_LENGTH, CREATE_TIME
+             FROM INFORMATION_SCHEMA.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        const [views] = await db.execute(
+            `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = ?`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        const [triggers] = await db.execute('SHOW TRIGGERS');
+        const [procedures] = await db.execute(
+            `SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'PROCEDURE'`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        const [events] = await db.execute(
+            `SELECT EVENT_NAME FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA = ?`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+        const [functions] = await db.execute(
+            `SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'FUNCTION'`,
+            [process.env.DB_NAME || 'fortress_ledger']
+        );
+
+        const totalSize = tables.reduce((acc, t) => acc + Number(t.DATA_LENGTH || 0) + Number(t.INDEX_LENGTH || 0), 0);
+        const totalRows = tables.reduce((acc, t) => acc + Number(t.TABLE_ROWS || 0), 0);
+
+        res.json({
+            database: process.env.DB_NAME || 'fortress_ledger',
+            tables: tables.map(t => ({
+                name: t.TABLE_NAME,
+                rows: t.TABLE_ROWS,
+                data_size: t.DATA_LENGTH,
+                index_size: t.INDEX_LENGTH,
+                created: t.CREATE_TIME
+            })),
+            summary: {
+                table_count: tables.length,
+                view_count: views.length,
+                trigger_count: triggers.length,
+                procedure_count: procedures.length,
+                function_count: functions.length,
+                event_count: events.length,
+                total_rows: totalRows,
+                total_size_bytes: totalSize,
+                total_size_mb: (totalSize / 1024 / 1024).toFixed(2)
+            },
+            views: views.map(v => v.TABLE_NAME),
+            triggers: triggers.map(t => t.Trigger),
+            procedures: procedures.map(p => p.ROUTINE_NAME),
+            events: events.map(e => e.EVENT_NAME),
+            functions: functions.map(f => f.ROUTINE_NAME)
+        });
+    } catch (error) {
+        console.error('Backup Info Error:', error);
+        res.status(500).json({ error: 'Server error fetching backup info' });
+    }
+};
+
 // Use global.IS_GLOBAL_LOCKDOWN for cross-module state

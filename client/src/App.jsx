@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import AdminUserDetail from './pages/AdminUserDetail';
 import NotFound from './pages/NotFound';
 
 // Import Components
@@ -79,12 +80,20 @@ export default function App() {
                     } 
                   />
 
-                  {/* Protected Admin Route */}
+                  {/* Protected Admin Routes */}
                   <Route 
                     path="/admin" 
                     element={
                       <ProtectedRoute requireAdmin={true}>
                         <Admin />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin/user/:id" 
+                    element={
+                      <ProtectedRoute requireAdmin={true}>
+                        <AdminUserDetail />
                       </ProtectedRoute>
                     } 
                   />
