@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -13,8 +13,10 @@
   --text-secondary: #475569;
   --brand-primary: #059669; /* Emerald 600 */
   --brand-secondary: #10b981; /* Emerald 500 */
+  --brand-glow: rgba(5, 150, 105, 0.15);
   --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 30px rgba(5, 150, 105, 0.1);
 }
 
 .dark {
@@ -26,8 +28,15 @@
   --text-secondary: #94a3b8;
   --brand-primary: #059669; 
   --brand-secondary: #34d399;
+  --brand-glow: rgba(5, 150, 105, 0.25);
   --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 40px rgba(5, 150, 105, 0.15);
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -39,19 +48,117 @@ body {
   overflow-x: hidden;
 }
 
-/* Glass panel that uses variables */
+/* Glass panel */
 .glass {
   background: var(--bg-card);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border-default);
   transition: all 0.3s ease;
 }
 
 .dark .glass {
-  background: rgba(15, 23, 42, 0.7);
+  background: rgba(15, 23, 42, 0.75);
+}
+
+/* Emerald glow effect */
+.glow-emerald {
+  box-shadow: 0 0 30px rgba(5, 150, 105, 0.12), 0 0 60px rgba(5, 150, 105, 0.04);
+}
+
+/* Shimmer text animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-text {
+  background: linear-gradient(90deg, var(--brand-primary) 0%, #34d399 50%, var(--brand-primary) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Code block style for SQL displays */
+.code-block {
+  background: #0a0f1a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.8;
+  padding: 16px;
+  overflow-x: auto;
+  color: #e2e8f0;
+}
+
+.code-block .keyword { color: #c084fc; }
+.code-block .function { color: #60a5fa; }
+.code-block .string { color: #34d399; }
+.code-block .comment { color: #475569; }
+.code-block .number { color: #f59e0b; }
+
+/* Gradient border animation */
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--brand-primary), #34d399, var(--brand-primary));
+  background-size: 200% 200%;
+  animation: gradient-rotate 4s ease infinite;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.gradient-border:hover::before {
+  opacity: 1;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(5, 150, 105, 0.3);
+  color: var(--text-primary);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-primary); }
+
+/* Input placeholder styling */
+input::placeholder, textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
