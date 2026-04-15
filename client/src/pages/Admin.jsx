@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../api/axios";
+import toast from 'react-hot-toast';
 import Navbar from "../components/ui/Navbar";
 import {
   Search,
@@ -23,6 +24,16 @@ import {
   BarChart2,
   ArrowRightLeft,
   PowerOff,
+  Hash,
+  Eye,
+  Layers,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Network,
+  History,
+  TerminalSquare,
+  Trash2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -73,6 +84,24 @@ export default function Admin() {
   const [isSystemLocked, setIsSystemLocked] = useState(false);
   const [showDefconModal, setShowDefconModal] = useState(false);
 
+  // Advanced DBMS Feature States
+  const [auditChainResult, setAuditChainResult] = useState(null);
+  const [chainLoading, setChainLoading] = useState(false);
+  const [explainData, setExplainData] = useState(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [fraudSummary, setFraudSummary] = useState([]);
+
+  // Phase 2 States
+  const [launderingRings, setLaunderingRings] = useState([]);
+  const [threads, setThreads] = useState([]);
+  const [timeMachineForm, setTimeMachineForm] = useState({ account_no: "", target_time: "" });
+  const [timeMachineResult, setTimeMachineResult] = useState(null);
+  const [tmLoading, setTmLoading] = useState(false);
+
+  // User Management States
+  const [allUsers, setAllUsers] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+
   useEffect(() => {
     if (!user || user.role !== "ADMIN") navigate("/dashboard");
     else fetchData();
@@ -107,6 +136,28 @@ export default function Admin() {
         .get("/admin/system-status")
         .then((res) => setIsSystemLocked(res.data.lockdown))
         .catch((e) => console.error("System Status Error:", e));
+
+      // Fraud Summary (Materialized View)
+      api
+        .get("/admin/fraud-summary")
+        .then((res) => setFraudSummary(res.data))
+        .catch((e) => console.error("System Status Error:", e));
+      
+      // Phase 2 States
+      api
+        .get("/admin/laundering-rings")
+        .then((res) => setLaunderingRings(res.data))
+        .catch((e) => console.error("Rings Error:", e));
+      api
+        .get("/admin/system-monitor")
+        .then((res) => setThreads(res.data.threads))
+        .catch((e) => console.error("Monitor Error:", e));
+
+      // User Management
+      api
+        .get("/admin/users")
+        .then((res) => setAllUsers(res.data))
+        .catch((e) => console.error("Users Error:", e));
     } catch (err) {
       if (
         err.response &&
@@ -122,9 +173,50 @@ export default function Admin() {
       const res = await api.post("/admin/system-lockdown");
       setIsSystemLocked(res.data.lockdown);
       setShowDefconModal(false);
-      fetchData(); // Refresh logs to show the massive lockdown event!
+      toast.success(res.data.lockdown ? 'System locked down' : 'System restored');
+      fetchData();
     } catch (error) {
-      alert("Failed to communicate with central core.");
+      toast.error("Failed to communicate with central core.");
+    }
+  };
+
+  // Verify Audit Chain Integrity
+  const verifyAuditChain = async () => {
+    setChainLoading(true);
+    try {
+      const res = await api.get("/admin/audit-chain-verify");
+      setAuditChainResult(res.data);
+    } catch (err) {
+      setAuditChainResult({ summary: { chain_status: 'ERROR', total_checked: 0 }, entries: [] });
+    } finally {
+      setChainLoading(false);
+    }
+  };
+
+  // Fetch EXPLAIN plan
+  const fetchExplainPlan = async () => {
+    setExplainLoading(true);
+    try {
+      const res = await api.get("/admin/explain-fraud");
+      setExplainData(res.data);
+    } catch (err) {
+      console.error("EXPLAIN Error:", err);
+    } finally {
+      setExplainLoading(false);
+    }
+  };
+
+  // Run Temporal Rebuild
+  const handleTimeMachine = async (e) => {
+    e.preventDefault();
+    setTmLoading(true);
+    try {
+      const res = await api.post("/admin/point-in-time", timeMachineForm);
+      setTimeMachineResult(res.data);
+    } catch(err) {
+      alert("Temporal rebuild failed: " + (err.response?.data?.error || ""));
+    } finally {
+      setTmLoading(false);
     }
   };
 
@@ -144,7 +236,7 @@ export default function Admin() {
       }
       setFreezeTarget(null);
     } catch (err) {
-      alert("Failed to update status.");
+      toast.error("Failed to update status.");
       setFreezeTarget(null);
     }
   };
@@ -157,6 +249,7 @@ export default function Admin() {
         account_no: supplyForm.account_no,
         amount: parseFloat(supplyForm.amount),
       });
+      toast.success(`Successfully injected capital into ${supplyForm.account_no}`);
       setMsg({
         text: `Successfully injected capital into ${supplyForm.account_no}`,
         type: "success",
@@ -169,6 +262,7 @@ export default function Admin() {
       )
         handleInspect(null, supplyForm.account_no);
     } catch (err) {
+      toast.error(err.response?.data?.error || "Injection failed");
       setMsg({
         text: err.response?.data?.error || "Injection failed",
         type: "error",
@@ -1272,6 +1366,327 @@ export default function Admin() {
             </div>
           </motion.div>
         </div>
+
+        {/* ROW 6: Advanced DBMS Feature Panels */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+          {/* Audit Chain Verification */}
+          <motion.div
+            initial="hidden" animate="visible" custom={11} variants={fadeUp}
+            className="rounded-3xl border p-6 glass"
+            style={{ borderColor: "var(--border-default)" }}
+          >
+            <div className="flex items-center gap-2 mb-4 font-bold" style={{ color: "var(--text-primary)" }}>
+              <Hash size={18} style={{ color: "var(--brand-primary)" }} /> SHA2 Chain Integrity
+            </div>
+            <p className="text-xs mb-4 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              Verify the tamper-evident hash chain. Each audit log row hashes its content + the previous hash.
+            </p>
+            <button
+              onClick={verifyAuditChain}
+              disabled={chainLoading}
+              className="w-full py-3 rounded-xl text-sm font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50 mb-4"
+              style={{ background: "var(--brand-primary)" }}
+            >
+              {chainLoading ? <Activity size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+              {chainLoading ? 'Verifying...' : 'Run Verification'}
+            </button>
+            {auditChainResult && (
+              <div className="space-y-3">
+                <div className={`p-4 rounded-xl border text-center ${
+                  auditChainResult.summary.chain_status === 'INTACT' ? 'bg-emerald-500/10 border-emerald-500/30' :
+                  auditChainResult.summary.chain_status === 'COMPROMISED' ? 'bg-rose-500/10 border-rose-500/30' :
+                  'bg-slate-500/10 border-slate-500/30'
+                }`}>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    {auditChainResult.summary.chain_status === 'INTACT' ? 
+                      <CheckCircle2 size={24} className="text-emerald-500" /> :
+                      auditChainResult.summary.chain_status === 'COMPROMISED' ?
+                      <XCircle size={24} className="text-rose-500" /> :
+                      <AlertCircle size={24} className="text-slate-400" />
+                    }
+                  </div>
+                  <p className={`text-lg font-extrabold uppercase tracking-wider ${
+                    auditChainResult.summary.chain_status === 'INTACT' ? 'text-emerald-500' :
+                    auditChainResult.summary.chain_status === 'COMPROMISED' ? 'text-rose-500' :
+                    'text-slate-400'
+                  }`}>{auditChainResult.summary.chain_status}</p>
+                  <p className="text-[10px] mt-1 font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    {auditChainResult.summary.valid} valid / {auditChainResult.summary.total_checked} checked
+                  </p>
+                </div>
+                <div className="max-h-[120px] overflow-y-auto space-y-1 text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                  {auditChainResult.entries.slice(0, 8).map((e, i) => (
+                    <div key={i} className="flex items-center justify-between px-2 py-1 rounded" style={{ background: 'var(--bg-base)' }}>
+                      <span>#{e.id} {e.action}</span>
+                      <span className={e.integrity === 'VALID' ? 'text-emerald-500' : e.integrity === 'TAMPERED' ? 'text-rose-500' : 'text-slate-400'}>
+                        {e.integrity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+
+          {/* EXPLAIN ANALYZE Panel */}
+          <motion.div
+            initial="hidden" animate="visible" custom={12} variants={fadeUp}
+            className="lg:col-span-2 rounded-3xl border p-6 glass"
+            style={{ borderColor: "var(--border-default)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+                <Eye size={18} style={{ color: "var(--brand-primary)" }} /> Query Execution Plan
+              </h3>
+              <button
+                onClick={fetchExplainPlan}
+                disabled={explainLoading}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                {explainLoading ? <Activity size={12} className="animate-spin" /> : <Layers size={12} />}
+                {explainLoading ? 'Analyzing...' : 'Run EXPLAIN'}
+              </button>
+            </div>
+            <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
+              Shows the MySQL execution plan for the fraud velocity query — verifying index usage.
+            </p>
+            {explainData ? (
+              <div className="space-y-4">
+                {/* EXPLAIN output */}
+                <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--border-default)' }}>
+                  <div className="bg-[#0a0f1a] p-4 font-mono text-[11px] min-w-[600px]">
+                    <div className="flex gap-4 pb-2 mb-2 border-b border-slate-700 text-slate-400 font-bold">
+                      <span className="w-8">ID</span>
+                      <span className="w-16">Type</span>
+                      <span className="w-24">Table</span>
+                      <span className="w-32">Key</span>
+                      <span className="w-12">Rows</span>
+                      <span className="flex-1">Extra</span>
+                    </div>
+                    {explainData.explain_plan.map((row, i) => (
+                      <div key={i} className="flex gap-4 py-1 text-slate-300">
+                        <span className="w-8 text-blue-400">{row.id}</span>
+                        <span className="w-16 text-purple-400">{row.select_type}</span>
+                        <span className="w-24 text-emerald-400">{row.table}</span>
+                        <span className="w-32 text-amber-400">{row.key || 'NULL'}</span>
+                        <span className="w-12 text-rose-400">{row.rows}</span>
+                        <span className="flex-1 text-slate-400">{row.Extra || '-'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Indexes */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>Active Indexes on Transactions Table</p>
+                  <div className="flex flex-wrap gap-2">
+                    {explainData.indexes.map((idx, i) => (
+                      <span key={i} className="px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold border" style={{ background: 'var(--bg-base)', borderColor: 'var(--border-default)', color: 'var(--brand-primary)' }}>
+                        {idx.key_name}.{idx.column_name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="h-32 flex items-center justify-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Click "Run EXPLAIN" to analyze the fraud velocity query execution plan.
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Materialized Fraud Summary */}
+        {fraudSummary.length > 0 && (
+          <motion.div
+            initial="hidden" animate="visible" custom={13} variants={fadeUp}
+            className="mt-8 rounded-3xl border p-6 glass"
+            style={{ borderColor: "var(--border-default)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+                <Layers size={18} style={{ color: "var(--brand-primary)" }} /> Materialized Fraud Summary
+              </h3>
+              <span className="text-[10px] uppercase font-bold border px-2 py-1 rounded-md" style={{ borderColor: 'var(--border-default)', color: 'var(--brand-primary)', background: 'rgba(5,150,105,0.1)' }}>
+                Auto-refreshed every 60s
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--border-default)' }}>
+                    <th className="text-left py-2 px-3 text-[10px] font-bold uppercase" style={{ color: 'var(--text-secondary)' }}>Account</th>
+                    <th className="text-right py-2 px-3 text-[10px] font-bold uppercase" style={{ color: '#e11d48' }}>Tx Count</th>
+                    <th className="text-right py-2 px-3 text-[10px] font-bold uppercase" style={{ color: '#e11d48' }}>Volume</th>
+                    <th className="text-right py-2 px-3 text-[10px] font-bold uppercase" style={{ color: 'var(--text-secondary)' }}>Refreshed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fraudSummary.map((row, i) => (
+                    <tr key={i} className="border-b last:border-0" style={{ borderColor: 'var(--border-default)' }}>
+                      <td className="py-2 px-3 font-mono text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{row.account_no || row.sender_id?.substring(0,12)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-xs font-bold text-rose-500">{row.tx_count}</td>
+                      <td className="py-2 px-3 text-right font-mono text-xs font-bold text-rose-500">${parseFloat(row.total_volume).toLocaleString()}</td>
+                      <td className="py-2 px-3 text-right text-[10px]" style={{ color: 'var(--text-secondary)' }}>{row.refreshed_at ? new Date(row.refreshed_at).toLocaleTimeString() : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ROW 7: Phase 2 Advanced DBMS Additions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            
+            {/* CTE Laundering Rings */}
+            <motion.div initial="hidden" animate="visible" custom={14} variants={fadeUp} className="rounded-3xl border p-6 glass" style={{ borderColor: 'var(--border-default)' }}>
+              <div className="flex items-center gap-2 mb-4 font-bold" style={{ color: "var(--text-primary)" }}>
+                <Network size={18} style={{ color: "var(--brand-primary)" }} /> Recursive CTE (Laundering)
+              </div>
+              <p className="text-xs mb-4 text-[var(--text-secondary)] leading-relaxed">
+                  Traces infinite depths using <span className="font-mono text-[var(--brand-primary)]">WITH RECURSIVE</span> to find closed transfer loops (Money Laundering rings).
+              </p>
+              <div className="space-y-4 max-h-[300px] overflow-y-auto">
+                 {launderingRings.length === 0 ? <p className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">No Closed Circuit Rings Flagged</p> : launderingRings.map((ring, i) => (
+                    <div key={i} className="p-3 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl text-xs font-mono break-all hover:border-[var(--brand-primary)] transition-colors">
+                       <span className="text-rose-500 font-bold uppercase tracking-wider text-[10px]">Ring Length Depth {ring.depth}:</span> <br/>
+                       <span className="text-[var(--text-primary)] leading-relaxed mt-1 block opacity-80">{ring.path}</span>
+                    </div>
+                 ))}
+              </div>
+            </motion.div>
+
+            {/* Temporal Time Machine */}
+            <motion.div initial="hidden" animate="visible" custom={15} variants={fadeUp} className="rounded-3xl border p-6 glass" style={{ borderColor: 'var(--border-default)' }}>
+              <div className="flex items-center gap-2 mb-4 font-bold" style={{ color: "var(--text-primary)" }}>
+                <History size={18} style={{ color: "var(--brand-primary)" }} /> Temporal Point-In-Time 
+              </div>
+              <p className="text-xs mb-4 text-[var(--text-secondary)] leading-relaxed">
+                  Queries JSON diffs backwards in <span className="font-mono text-[var(--brand-primary)]">audit_logs</span> to reverse-engineer exact historical balance state.
+              </p>
+              <form onSubmit={handleTimeMachine} className="space-y-3 mb-4">
+                  <input required value={timeMachineForm.account_no} onChange={e => setTimeMachineForm({...timeMachineForm, account_no: e.target.value})} type="text" placeholder="Account No" className="w-full p-3 text-xs font-mono rounded-xl bg-[var(--bg-base)] border border-[var(--border-default)] outline-emerald-500 text-[var(--text-primary)] focus:ring-1" />
+                  <input required value={timeMachineForm.target_time} onChange={e => setTimeMachineForm({...timeMachineForm, target_time: e.target.value})} type="datetime-local" className="w-full p-3 text-xs font-mono rounded-xl bg-[var(--bg-base)] border border-[var(--border-default)] outline-emerald-500 text-[var(--text-primary)] focus:ring-1" />
+                  <button type="submit" disabled={tmLoading} className="w-full py-3 mt-2 bg-[var(--brand-primary)] hover:opacity-90 transition-opacity text-white text-xs font-bold rounded-xl shadow-lg flex justify-center items-center gap-2">
+                    {tmLoading ? <Activity size={14} className="animate-spin" /> : <History size={14} />} {tmLoading ? "Reversing Time Diffs..." : "Reconstruct Balance"}
+                  </button>
+              </form>
+              {timeMachineResult && (
+                  <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="p-4 border border-[var(--brand-primary)] bg-emerald-500/10 rounded-xl">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--brand-primary)] font-bold mb-1">State @ {new Date(timeMachineResult.at_time).toLocaleString()}</p>
+                      <p className="text-3xl font-mono font-black mt-2 text-[var(--text-primary)] shimmer-text">${parseFloat(timeMachineResult.reconstructed_balance).toFixed(2)}</p>
+                  </motion.div>
+              )}
+            </motion.div>
+
+            {/* System Monitor */}
+            <motion.div initial="hidden" animate="visible" custom={16} variants={fadeUp} className="rounded-3xl border p-6 glass" style={{ borderColor: 'var(--border-default)' }}>
+              <div className="flex items-center justify-between mb-4 font-bold" style={{ color: "var(--text-primary)" }}>
+                <div className="flex gap-2 items-center"><TerminalSquare size={18} style={{ color: "var(--brand-primary)" }} /> Connection Monitor</div>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-[var(--brand-primary)] uppercase tracking-wider border border-[var(--brand-primary)]">SYS.PROCESSLIST</div>
+              </div>
+              <p className="text-xs mb-4 text-[var(--text-secondary)] leading-relaxed">
+                  Live diagnostic of active queries and processes running directly on MySQL Server threadpool.
+              </p>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                 {threads.map((t, i) => (
+                    <div key={i} className="p-3 bg-[#020617] border border-slate-800 rounded-xl text-[10px] font-mono text-slate-300">
+                       <div className="flex justify-between w-full border-b border-slate-800 pb-2 mb-2">
+                           <span className="text-blue-400 font-bold">PID: {t.ID} | {t.USER}</span> 
+                           <span className={t.TIME > 5 ? "text-rose-500 font-bold" : "text-emerald-500"}>{t.TIME} sec</span>
+                       </div>
+                       <span className="text-amber-400 opacity-90">{t.COMMAND}: {t.INFO ? t.INFO.substring(0, 100) + (t.INFO.length>100?"...":"") : "NULL"}</span>
+                       <br/>
+                       {t.STATE && <span className="text-slate-500 mt-2 block ">[{t.STATE}]</span>}
+                    </div>
+                 ))}
+              </div>
+            </motion.div>
+
+            {/* USER MANAGEMENT PANEL */}
+            <motion.div initial="hidden" animate="visible" custom={17} variants={fadeUp} className="rounded-3xl border p-6 glass lg:col-span-2" style={{ borderColor: 'var(--border-default)' }}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+                  <Users size={18} style={{ color: "var(--brand-primary)" }} /> User Management Panel
+                </h3>
+                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-md border" style={{ borderColor: 'var(--border-default)', color: 'var(--brand-primary)', background: 'rgba(5,150,105,0.1)' }}>
+                  {allUsers.length} Entities
+                </span>
+              </div>
+
+              {/* Delete Confirmation */}
+              <AnimatePresence>
+                {showDeleteConfirm && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 p-4 rounded-xl border-2 border-rose-500/50 bg-rose-500/10">
+                    <p className="text-sm font-bold text-rose-400 mb-3">
+                      Delete user <span className="font-mono">{showDeleteConfirm.email}</span> and all their data? This action is irreversible.
+                    </p>
+                    <div className="flex gap-3">
+                      <button onClick={() => setShowDeleteConfirm(null)} className="px-4 py-2 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}>Cancel</button>
+                      <button onClick={async () => {
+                        try {
+                          await api.delete(`/admin/user/${showDeleteConfirm.id}`);
+                          toast.success(`User ${showDeleteConfirm.email} deleted`);
+                          setShowDeleteConfirm(null);
+                          fetchData();
+                        } catch (err) {
+                          toast.error(err.response?.data?.error || 'Delete failed');
+                        }
+                      }} className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-rose-600 flex items-center gap-1"><Trash2 size={12} /> Confirm Delete</button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b" style={{ borderColor: 'var(--border-default)' }}>
+                      <th className="text-left py-3 px-2 font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Email</th>
+                      <th className="text-left py-3 px-2 font-bold uppercase tracking-wider hidden sm:table-cell" style={{ color: 'var(--text-secondary)' }}>Account</th>
+                      <th className="text-right py-3 px-2 font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Balance</th>
+                      <th className="text-center py-3 px-2 font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Status</th>
+                      <th className="text-center py-3 px-2 font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allUsers.map((u, i) => (
+                      <tr key={i} className="border-b hover:bg-[var(--bg-hover)] transition-colors" style={{ borderColor: 'var(--border-default)' }}>
+                        <td className="py-3 px-2">
+                          <p className="font-bold truncate max-w-[180px]" style={{ color: 'var(--text-primary)' }}>{u.email}</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{u.role} • ID:{u.id}</p>
+                        </td>
+                        <td className="py-3 px-2 font-mono hidden sm:table-cell" style={{ color: 'var(--text-primary)' }}>{u.account_no || 'N/A'}</td>
+                        <td className="py-3 px-2 text-right font-mono font-bold" style={{ color: 'var(--brand-primary)' }}>${u.balance ? parseFloat(u.balance).toFixed(2) : '0.00'}</td>
+                        <td className="py-3 px-2 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : u.status === 'FROZEN' ? 'bg-rose-500/10 text-rose-500 border-rose-500/30' : 'bg-slate-500/10 text-slate-400 border-slate-500/30'}`}>
+                            {u.status || 'NONE'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {u.account_id && (
+                              <button onClick={() => confirmFreeze(u.account_id, u.account_no, u.status)} className="p-1.5 rounded-lg border hover:opacity-70 transition-all" style={{ borderColor: 'var(--border-default)', color: u.status === 'ACTIVE' ? '#e11d48' : '#10b981' }} title={u.status === 'ACTIVE' ? 'Freeze' : 'Unfreeze'}>
+                                {u.status === 'ACTIVE' ? <Lock size={12} /> : <Unlock size={12} />}
+                              </button>
+                            )}
+                            {u.role !== 'ADMIN' && (
+                              <button onClick={() => setShowDeleteConfirm(u)} className="p-1.5 rounded-lg border border-rose-500/30 hover:bg-rose-500/10 transition-all text-rose-500" title="Delete User">
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+
+        </div>
+
       </div>
     </div>
   );
