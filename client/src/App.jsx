@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { Toaster } from 'react-hot-toast';
 
 // Import Pages
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 import NotFound from './pages/NotFound';
 
@@ -59,12 +61,20 @@ export default function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   
-                  {/* Protected Customer Route */}
+                  {/* Protected Customer Routes */}
                   <Route 
                     path="/dashboard" 
                     element={
                       <ProtectedRoute>
                         <Dashboard />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/profile" 
+                    element={
+                      <ProtectedRoute>
+                        <Profile />
                       </ProtectedRoute>
                     } 
                   />
@@ -87,6 +97,28 @@ export default function App() {
             <Footer />
           </div>
         </AuthProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: 'var(--bg-card)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '12px',
+              fontSize: '13px',
+              fontWeight: '600',
+              backdropFilter: 'blur(16px)',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            },
+            success: {
+              iconTheme: { primary: '#059669', secondary: '#ffffff' },
+            },
+            error: {
+              iconTheme: { primary: '#e11d48', secondary: '#ffffff' },
+            },
+          }}
+        />
       </ThemeProvider>
     </Router>
   );
