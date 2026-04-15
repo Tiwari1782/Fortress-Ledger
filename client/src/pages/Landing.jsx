@@ -8,7 +8,7 @@ import {
   Vault, Activity, ArrowRight, ChevronRight, Fingerprint,
   Layers, GitBranch, Shield, Cpu, Server, Eye, Hash,
   BarChart2, Table, Zap, Network, FileCode, AlertTriangle,
-  Binary, KeyRound, ScrollText
+  Binary, KeyRound, ScrollText, XCircle
 } from 'lucide-react';
 
 const fadeUp = { hidden: { opacity: 0, y: 40 }, visible: (i = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.7, ease: [0.22, 1, 0.36, 1] } }) };
@@ -446,6 +446,185 @@ export default function Landing() {
                 </div>
               </div>
             </TiltCard>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ============ NORMALIZATION PROOF ============ */}
+      <section className="py-24 bg-transparent">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={fadeUp} className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-4" style={{ background: "var(--bg-hover)", color: "var(--brand-primary)" }}>
+              <Layers size={14} /> Schema Normalization
+            </span>
+            <h2 className="text-3xl lg:text-[2.5rem] font-extrabold leading-tight" style={{ color: "var(--text-primary)" }}>
+              From Raw Data to <span style={{ color: "var(--brand-primary)" }}>BCNF</span>
+            </h2>
+            <p className="mt-4 max-w-2xl mx-auto text-base" style={{ color: "var(--text-secondary)" }}>
+              FortressLedger's actual schema — decomposed step-by-step through normal forms, proving zero redundancy and full data integrity.
+            </p>
+          </motion.div>
+
+          {/* Normalization Steps */}
+          <div className="space-y-8">
+            {[
+              {
+                step: "UNF",
+                title: "Unnormalized Form",
+                color: "#e11d48",
+                desc: "All data in one flat table — repeating groups, redundancy everywhere.",
+                table: {
+                  name: "bank_data_raw",
+                  cols: ["user_email", "password_hash", "role", "account_no", "balance", "status", "tx_amount", "tx_type", "tx_receiver", "tx_date", "audit_action", "audit_old", "audit_new"],
+                  highlight: [0, 3, 6, 10],
+                },
+                problems: ["Repeating groups (multiple transactions per user row)", "Massive redundancy (user email repeated for every transaction)", "Insert/Update/Delete anomalies"],
+              },
+              {
+                step: "1NF",
+                title: "First Normal Form",
+                color: "#f59e0b",
+                desc: "Atomic values only — no repeating groups. Each row is unique via a primary key.",
+                table: {
+                  name: "Split into: users | accounts | transactions",
+                  cols: ["users(id ← PK, email, password_hash, role)", "accounts(id ← PK, user_id → FK, account_no, balance, status)", "transactions(id ← PK, sender_id → FK, receiver_id → FK, amount, type)"],
+                  highlight: [],
+                },
+                problems: ["✅ Eliminated repeating groups", "⚠ Partial dependency: account_no → balance (non-key → non-key in wider sense)", "⚠ Transitive dependencies may still exist"],
+              },
+              {
+                step: "2NF",
+                title: "Second Normal Form",
+                color: "#3b82f6",
+                desc: "All non-key attributes fully depend on the ENTIRE primary key — no partial dependencies.",
+                table: {
+                  name: "Already 2NF — all tables use single-column PKs",
+                  cols: ["users: id → {email, password_hash, role}", "accounts: id → {user_id, account_no, balance, status}", "transactions: id → {sender_id, receiver_id, amount, type}", "audit_logs: id → {entity_id, action, old_value, new_value}"],
+                  highlight: [],
+                },
+                problems: ["✅ No partial dependencies (single-column PKs eliminate this class entirely)", "⚠ Check for transitive dependencies: Does A → B → C exist?"],
+              },
+              {
+                step: "3NF",
+                title: "Third Normal Form",
+                color: "#8b5cf6",
+                desc: "No transitive dependencies — every non-key column depends ONLY on the primary key, not on other non-key columns.",
+                table: {
+                  name: "Verified: No transitive dependencies exist",
+                  cols: ["users.email → determined only by users.id ✓", "accounts.balance → determined only by accounts.id ✓", "accounts.status → determined only by accounts.id ✓", "audit_logs.chain_hash → computed from ALL row content (no transit dependency) ✓"],
+                  highlight: [],
+                },
+                problems: ["✅ No column depends on another non-key column", "✅ Every functional dependency is: PK → attribute", "Example proof: account_no is UNIQUE but not PK — if it were, balance determined by account_no would be a transitive dep. We use UUID PK, so this is clean."],
+              },
+              {
+                step: "BCNF",
+                title: "Boyce-Codd Normal Form",
+                color: "var(--brand-primary)",
+                desc: "Every determinant is a candidate key. The strictest practical normal form.",
+                table: {
+                  name: "Fortress Ledger Schema — fully BCNF compliant",
+                  cols: ["Determinant: users.id → {email, password_hash, role, created_at}", "Determinant: users.email (UNIQUE) → {id} — email is a candidate key ✓", "Determinant: accounts.id → {user_id, account_no, balance, status}", "Determinant: accounts.account_no (UNIQUE) → {id} — candidate key ✓", "Determinant: transactions.id → {sender_id, receiver_id, amount, type}", "Determinant: audit_logs.id → {entity_id, action, old_value, new_value, chain_hash}"],
+                  highlight: [],
+                },
+                problems: ["✅ Every determinant (email, account_no) is a candidate key", "✅ No non-trivial FD has a non-superkey determinant", "✅ Schema is in BCNF — the highest practical normal form for OLTP"],
+              },
+            ].map((nf, idx) => (
+              <motion.div
+                key={nf.step}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-30px" }}
+                custom={idx * 0.12}
+                variants={fadeUp}
+              >
+                <div className="rounded-2xl border p-6 lg:p-8 transition-all duration-300 group hover:shadow-lg relative overflow-hidden" style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}>
+                  {/* Left accent bar */}
+                  <div className="absolute top-0 left-0 w-1.5 h-full rounded-r-full" style={{ background: nf.color }} />
+                  
+                  <div className="flex flex-col lg:flex-row gap-6 relative z-10">
+                    {/* Step badge + Title */}
+                    <div className="lg:w-1/4 flex-shrink-0">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl text-white font-extrabold text-sm shadow-lg" style={{ background: nf.color }}>
+                          {nf.step}
+                        </span>
+                        {idx < 4 && (
+                          <div className="hidden lg:flex w-8 h-8 rounded-full items-center justify-center border" style={{ borderColor: "var(--border-default)", color: nf.color }}>
+                            <ArrowRight size={14} />
+                          </div>
+                        )}
+                        {idx === 4 && (
+                          <div className="hidden lg:flex w-8 h-8 rounded-full items-center justify-center text-white shadow-lg" style={{ background: "var(--brand-primary)" }}>
+                            <CheckCircle2 size={14} />
+                          </div>
+                        )}
+                      </div>
+                      <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)" }}>{nf.title}</h3>
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{nf.desc}</p>
+                    </div>
+
+                    {/* Schema breakdown */}
+                    <div className="lg:w-1/2 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: nf.color }}>{nf.table.name}</p>
+                      <div className="space-y-1.5">
+                        {nf.table.cols.map((col, ci) => (
+                          <div
+                            key={ci}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-mono"
+                            style={{
+                              background: nf.table.highlight.includes(ci) ? `${nf.color}15` : "var(--bg-base)",
+                              borderLeft: nf.table.highlight.includes(ci) ? `3px solid ${nf.color}` : "3px solid transparent",
+                              color: nf.table.highlight.includes(ci) ? nf.color : "var(--text-primary)",
+                            }}
+                          >
+                            {col}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Analysis */}
+                    <div className="lg:w-1/4 flex-shrink-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Analysis</p>
+                      <ul className="space-y-1.5">
+                        {nf.problems.map((p, pi) => (
+                          <li key={pi} className="text-[11px] leading-snug flex items-start gap-1.5" style={{ color: p.startsWith("✅") ? "var(--brand-primary)" : p.startsWith("⚠") ? "#f59e0b" : "#e11d48" }}>
+                            <span className="mt-0.5 flex-shrink-0">
+                              {p.startsWith("✅") ? <CheckCircle2 size={10} /> : p.startsWith("⚠") ? <AlertTriangle size={10} /> : <XCircle size={10} />}
+                            </span>
+                            <span>{p.replace(/^[✅⚠❌]\s*/, "")}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Arrow connector between steps */}
+                {idx < 4 && (
+                  <div className="flex justify-center py-2">
+                    <motion.div
+                      initial={{ opacity: 0, scaleY: 0 }}
+                      whileInView={{ opacity: 1, scaleY: 1 }}
+                      viewport={{ once: true }}
+                      className="w-0.5 h-6 rounded-full"
+                      style={{ background: "var(--border-default)" }}
+                    />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Final BCNF Certification Badge */}
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={scaleIn} className="mt-12 text-center">
+            <div className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl border shadow-lg" style={{ background: "var(--bg-card)", borderColor: "var(--brand-primary)" }}>
+              <CheckCircle2 size={24} style={{ color: "var(--brand-primary)" }} />
+              <div className="text-left">
+                <p className="text-sm font-extrabold" style={{ color: "var(--text-primary)" }}>Schema Verified: BCNF Compliant</p>
+                <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>4 tables • 0 redundancy • 0 anomalies • Every determinant is a candidate key</p>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
