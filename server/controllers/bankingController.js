@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 exports.getBalance = async (req, res) => {
     try {
         const [accounts] = await db.execute(
-            'SELECT account_no, balance, status FROM accounts WHERE user_id = ?',
+            'SELECT account_no, balance, status FROM accounts WHERE user_id = ? ORDER BY created_at ASC LIMIT 1',
             [req.user.id]
         );
 
@@ -21,8 +21,8 @@ exports.getBalance = async (req, res) => {
 //History
 exports.getHistory = async (req, res) => {
     try {
-        // First get the user's account ID
-        const [accounts] = await db.execute('SELECT id FROM accounts WHERE user_id = ?', [req.user.id]);
+        // First get the user's account ID deterministically
+        const [accounts] = await db.execute('SELECT id FROM accounts WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', [req.user.id]);
         if (accounts.length === 0) return res.status(404).json({ error: 'Account not found' });
         
         const accountId = accounts[0].id;
@@ -68,7 +68,7 @@ exports.transfer = async (req, res) => {
 
         // 2. RESOLVE: Get both account IDs BEFORE locking (non-locking reads)
         const [senderRows] = await connection.execute(
-            'SELECT id FROM accounts WHERE user_id = ?',
+            'SELECT id FROM accounts WHERE user_id = ? ORDER BY created_at ASC LIMIT 1',
             [req.user.id]
         );
         if (senderRows.length === 0) throw new Error('Sender account not found');
@@ -128,17 +128,60 @@ exports.transfer = async (req, res) => {
 
         // Log transaction
         const txId = uuidv4();
-        await connection.execute(
-            'INSERT INTO transactions (id, sender_id, receiver_id, amount, type) VALUES (?, ?, ?, ?, ?)',
-            [txId, sender.id, receiver.id, transferAmount, 'TRANSFER']
-        );
+        if (req.body.lat && req.body.lng) {
+            await connection.execute(
+                "INSERT INTO transactions (id, sender_id, receiver_id, amount, type, location) VALUES (?, ?, ?, ?, ?, ST_GeomFromText(?, 4326))",
+                [txId, sender.id, receiver.id, transferAmount, 'TRANSFER', `POINT(${req.body.lat} ${req.body.lng})`]
+            );
+        } else {
+            await connection.execute(
+                'INSERT INTO transactions (id, sender_id, receiver_id, amount, type) VALUES (?, ?, ?, ?, ?)',
+                [txId, sender.id, receiver.id, transferAmount, 'TRANSFER']
+            );
+        }
 
         // 6. COMMIT: ACID guarantee
         await connection.commit();
+
+        // 7. EMIT: Real-time socket notification to receiver
+        const io = req.app.get('io');
+        if (io) {
+            // we need the receiver's actual account no to emit to their room
+            const [ra] = await db.execute('SELECT account_no FROM accounts WHERE id=?', [receiver.id]);
+            const [sa] = await db.execute('SELECT account_no FROM accounts WHERE id=?', [sender.id]);
+            io.to(ra[0].account_no).emit("transfer_received", {
+                amount: transferAmount,
+                sender: sa[0].account_no,
+                txId: txId
+            });
+        }
+
         res.json({ message: 'Transfer successful', transaction_id: txId });
 
     } catch (error) {
         await connection.rollback();
+        
+        // DETECTION: Geographic Interception
+        if (error.message && error.message.includes('IMPOSSIBLE_TRAVEL')) {
+            const [speed] = error.message.split('|')[1].split(' '); // Capture KM/H from SQL signal
+            
+            try {
+                // Log manually outside of the rolled-back connection to ensure persistence
+                await db.execute(
+                    `INSERT INTO spatial_fraud_logs (user_id, calculated_speed_kmh, previous_location, attempted_location) 
+                     SELECT ?, ?, location, ST_GeomFromText(?, 4326) 
+                     FROM transactions WHERE sender_id = ? AND location IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+                    [req.user.id, speed, `POINT(${req.body.lat} ${req.body.lng})`, senderId]
+                );
+            } catch (logErr) {
+                console.error("Forensic Log Failure:", logErr);
+            }
+            
+            return res.status(400).json({ 
+                error: `Fraud Alert: Impossible Travel Detected (${parseFloat(speed).toLocaleString()} KM/H). Transaction Aborted for Security.` 
+            });
+        }
+
         res.status(400).json({ error: error.message || 'Transfer failed' });
     } finally {
         connection.release();
@@ -150,8 +193,8 @@ exports.getStatement = async (req, res) => {
     const { year, month } = req.params;
     
     try {
-        // Get user's account ID
-        const [accounts] = await db.execute('SELECT id FROM accounts WHERE user_id = ?', [req.user.id]);
+        // Get user's account ID deterministically
+        const [accounts] = await db.execute('SELECT id FROM accounts WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', [req.user.id]);
         if (accounts.length === 0) return res.status(404).json({ error: 'Account not found' });
         
         const accountId = accounts[0].id;
@@ -238,4 +281,27 @@ exports.getScheduledTransfers = async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: 'Server error fetching scheduled transfers' });
     }
-}
+};
+
+// 4. Algorithmic Loan Request
+exports.requestLoan = async (req, res) => {
+    try {
+        const { amount } = req.body;
+        if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+        const [accRows] = await db.execute('SELECT id FROM accounts WHERE user_id = ?', [req.user.id]);
+        if (accRows.length === 0) return res.status(404).json({ error: 'Account not found' });
+        
+        const accountId = accRows[0].id;
+
+        // Execute the procedural underwriter
+        const [rows] = await db.execute('CALL sp_request_loan(?, ?)', [accountId, amount]);
+        
+        // Return underwriting decision
+        const decision = rows[0][0];
+        res.json(decision);
+    } catch (e) {
+        console.error("Loan Request Error:", e);
+        res.status(500).json({ error: 'Server error parsing underwriting decision. Assure advanced_schema_v3 is loaded.' });
+    }
+};
