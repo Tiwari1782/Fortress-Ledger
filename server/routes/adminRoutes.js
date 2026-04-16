@@ -31,6 +31,12 @@ router.get('/laundering-rings', adminController.getMoneyLaunderingRings);
 router.post('/point-in-time', adminController.getPointInTimeSnapshot);
 router.get('/system-monitor', adminController.getSystemMonitor);
 
+// Phase 3 Advanced Routes
+router.get('/phase3-stats', adminController.getPhase3Stats);
+router.get('/spatial-logs', adminController.getSpatialLogs);
+router.get('/pending-loans', adminController.getPendingLoans);
+router.post('/loan/:id/:action', adminController.actionLoanRequest);
+
 // User Management Routes
 router.get('/users', adminController.getAllUsers);
 router.get('/user/:id', adminController.getUserDetail);
