@@ -198,6 +198,12 @@ exports.toggleSystemLockdown = async (req, res) => {
             console.log("⚠️ DB Log Failsafe Triggered:", dbError.message);
         }
 
+        // Emit WebSocket broadcast to immediately lock out active clients
+        const io = req.app.get('io');
+        if (io) {
+            io.emit("DEFCON_ACTIVATED", { locked: global.IS_GLOBAL_LOCKDOWN });
+        }
+
         res.json({ message: 'Global network status updated', lockdown: global.IS_GLOBAL_LOCKDOWN });
         
     } catch (error) {
@@ -422,6 +428,46 @@ exports.getSystemMonitor = async (req, res) => {
         res.json({ threads: processlist, active_transactions: [] });
     } catch (e) {
         res.status(500).json({ error: 'Monitor Error' });
+    }
+};
+
+// ============================================================================
+// PHASE 3 EXPANSION (SPATIAL & FOREX)
+// ============================================================================
+
+exports.getPhase3Stats = async (req, res) => {
+    try {
+        const [spatial] = await db.execute('SELECT COUNT(*) as interceptions FROM spatial_fraud_logs');
+        const [forex] = await db.execute("SELECT balance FROM accounts WHERE account_no = 'CENTRAL_MINT_FX'");
+        
+        res.json({
+            spatial_interceptions: spatial[0] ? spatial[0].interceptions : 0,
+            forex_profit: forex.length > 0 ? forex[0].balance : 0
+        });
+    } catch (e) {
+        res.json({ spatial_interceptions: 0, forex_profit: 0 });
+    }
+};
+
+exports.getSpatialLogs = async (req, res) => {
+    try {
+        const [logs] = await db.execute(`
+            SELECT 
+                s.id, 
+                u.email, 
+                s.calculated_speed_kmh, 
+                ST_AsText(s.previous_location) as prev_loc, 
+                ST_AsText(s.attempted_location) as current_loc, 
+                s.created_at
+            FROM spatial_fraud_logs s
+            JOIN users u ON s.user_id = u.id
+            ORDER BY s.created_at DESC
+            LIMIT 50
+        `);
+        res.json(logs);
+    } catch (e) {
+        console.error('Spatial Logs Error:', e);
+        res.status(500).json({ error: 'Failed to fetch spatial logs' });
     }
 };
 
@@ -927,6 +973,47 @@ exports.getBackupInfo = async (req, res) => {
     } catch (error) {
         console.error('Backup Info Error:', error);
         res.status(500).json({ error: 'Server error fetching backup info' });
+    }
+};
+
+exports.getPendingLoans = async (req, res) => {
+    try {
+        const [loans] = await db.execute(`
+            SELECT l.id, l.amount, l.reason, l.created_at, u.email
+            FROM loans l 
+            JOIN users u ON l.user_id = u.id 
+            WHERE l.status = 'PENDING'
+            ORDER BY l.created_at ASC
+        `);
+        res.json(loans);
+    } catch (error) {
+        console.error('Pending Loans Error:', error);
+        res.status(500).json({ error: 'Server error retrieving pending loans' });
+    }
+};
+
+exports.actionLoanRequest = async (req, res) => {
+    try {
+        const { id, action } = req.params;
+        
+        if (action === 'approve') {
+            const [rows] = await db.execute('CALL sp_approve_loan(?)', [id]);
+            const result = rows[0][0].result;
+            
+            if (result === 'SUCCESS') {
+                return res.json({ message: 'Loan heavily approved and funds disbursed.' });
+            } else {
+                return res.status(400).json({ error: 'Loan is not in a valid pending state.' });
+            }
+        } else if (action === 'reject') {
+            await db.execute("UPDATE loans SET status = 'DENIED', reason = CONCAT(reason, ' [ADMIN VETO]') WHERE id = ?", [id]);
+            return res.json({ message: 'Loan request vetoed successfully.' });
+        } else {
+            return res.status(400).json({ error: 'Invalid action.' });
+        }
+    } catch (error) {
+        console.error('Action Loan Error:', error);
+        res.status(500).json({ error: error.message || 'Server error processing loan action' });
     }
 };
 
