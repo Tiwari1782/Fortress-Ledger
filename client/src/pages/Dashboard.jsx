@@ -43,7 +43,7 @@ export default function Dashboard() {
     const [msg, setMsg] = useState({ text: '', type: '' });
     
     // Transfer State
-    const [transferForm, setTransferForm] = useState({ receiver: '', amount: '' });
+    const [transferForm, setTransferForm] = useState({ receiver: '', amount: '', location: '' });
     const [showConfirm, setShowConfirm] = useState(false);
     const [isTransferring, setIsTransferring] = useState(false);
 
@@ -134,13 +134,19 @@ export default function Dashboard() {
         setIsTransferring(true);
         const loadingToast = toast.loading('Acquiring row locks & executing...');
         try {
-            const res = await api.post('/banking/transfer', {
+            const payload = {
                 receiver_account_no: transferForm.receiver,
                 amount: parseFloat(transferForm.amount)
-            });
+            };
+            if (transferForm.location) {
+                const [lat, lng] = transferForm.location.split(',');
+                payload.lat = parseFloat(lat);
+                payload.lng = parseFloat(lng);
+            }
+            const res = await api.post('/banking/transfer', payload);
             toast.dismiss(loadingToast);
             toast.success(`Transfer successful! TxID: ${res.data.transaction_id?.substring(0, 8)}...`);
-            setTransferForm({ receiver: '', amount: '' });
+            setTransferForm({ receiver: '', amount: '', location: '' });
             fetchBalance();
             fetchHistory(1);
         } catch (err) {
@@ -362,7 +368,7 @@ export default function Dashboard() {
             `}</style>
             
             <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8 flex gap-4 border-b border-[var(--border-default)] overflow-x-auto">
-                {['overview', 'analytics', 'scheduled'].map(tab => (
+                {['overview', 'analytics', 'scheduled', 'underwriting'].map(tab => (
                     <button 
                         key={tab} 
                         onClick={() => setActiveTab(tab)}
@@ -411,6 +417,14 @@ export default function Dashboard() {
                                         </div>
                                         <div>
                                             <input required value={transferForm.amount} onChange={e => setTransferForm({...transferForm, amount: e.target.value})} type="number" step="0.01" min="1" placeholder="Amount USD ($)" className="w-full p-4 rounded-xl border focus:ring-2 font-mono text-sm bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-primary)] outline-emerald-500" />
+                                        </div>
+                                        <div>
+                                            <select value={transferForm.location} onChange={e => setTransferForm({...transferForm, location: e.target.value})} className="w-full p-4 rounded-xl border focus:ring-2 font-mono text-xs bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-secondary)] outline-emerald-500">
+                                                <option value="">Spoof Geographic Node (Optional)</option>
+                                                <option value="40.7128,-74.0060">New York, USA</option>
+                                                <option value="51.5074,-0.1278">London, UK</option>
+                                                <option value="35.6762,139.6503">Tokyo, JP</option>
+                                            </select>
                                         </div>
                                         
                                         <button type="submit" disabled={isTransferring} className="w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 group transition-all hover:opacity-90 bg-[var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed">
@@ -645,6 +659,44 @@ export default function Dashboard() {
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* TAB: UNDERWRITING (Algorithmic Loan) */}
+                    {activeTab === 'underwriting' && (
+                        <motion.div key="underwriting" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="rounded-3xl p-6 sm:p-8 border bg-[var(--bg-card)] border-[var(--border-default)]">
+                                <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-[var(--text-primary)]"><ShieldCheck size={20} className="text-[var(--brand-primary)]"/> Algorithmic Underwriting</h3>
+                                <p className="text-sm mb-6 text-[var(--text-secondary)] leading-relaxed">
+                                    Instead of human analysts, this system utilizes a Stored Procedure (<span className="font-mono text-[var(--brand-primary)]">sp_request_loan</span>) to dynamically gauge your average daily liquidity, calculate transaction frequency over the past 90 days, and instantly render a lending decision.
+                                </p>
+                                <div className="space-y-4">
+                                    <input id="loanAmount" type="number" placeholder="Requested Loan Capital ($)" className="w-full p-4 rounded-xl border focus:ring-2 font-mono text-sm bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-primary)] outline-emerald-500" />
+                                    <button onClick={async () => {
+                                        const amt = document.getElementById('loanAmount').value;
+                                        if(!amt) return toast.error('Enter a loan amount');
+                                        const loading = toast.loading('Executing Underwriting Sp...');
+                                        try {
+                                            const res = await api.post('/banking/loan', { amount: parseFloat(amt) });
+                                            toast.dismiss(loading);
+                                            if (res.data.status === 'PENDING') {
+                                                toast.success(`SCORE: ${res.data.score}. ${res.data.message}`, { duration: 6000 });
+                                            } else if (res.data.status === 'APPROVED') {
+                                                toast.success(`LOAN AUTO-APPROVED! Score: ${res.data.score}.`, { duration: 6000 });
+                                                fetchBalance();
+                                                fetchHistory(1);
+                                            } else {
+                                                toast.error(`LOAN DENIED BY ALGORITHM. Score: ${res.data.score}. ${res.data.message}`, { duration: 6000 });
+                                            }
+                                        } catch (e) {
+                                            toast.dismiss(loading);
+                                            toast.error(e.response?.data?.error || 'Database computation failed');
+                                        }
+                                    }} className="w-full py-4 rounded-xl font-bold text-white shadow-lg bg-[var(--brand-primary)] transition-all hover:opacity-90">
+                                        Execute Loan Request
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     )}

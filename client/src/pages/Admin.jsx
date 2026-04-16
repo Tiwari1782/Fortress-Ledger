@@ -117,6 +117,14 @@ export default function Admin() {
   const [backupInfo, setBackupInfo] = useState(null);
   const [backupLoading, setBackupLoading] = useState(false);
 
+  // Phase 4: Loan Clearance States
+  const [pendingLoans, setPendingLoans] = useState([]);
+  const [loanLoading, setLoanLoading] = useState(false);
+
+  // Phase 4: Spatial Forensic States
+  const [spatialLogs, setSpatialLogs] = useState([]);
+  const [spatialLoading, setSpatialLoading] = useState(false);
+
   useEffect(() => {
     if (!user || user.role !== "ADMIN") navigate("/dashboard");
     else fetchData();
@@ -179,12 +187,53 @@ export default function Admin() {
         .get("/admin/backup/info")
         .then((res) => setBackupInfo(res.data))
         .catch((e) => console.error("Backup Info Error:", e));
+
+      fetchPendingLoans();
+      fetchSpatialLogs();
     } catch (err) {
       if (
         err.response &&
         (err.response.status === 401 || err.response.status === 403)
       )
         logout();
+    }
+  };
+
+  const fetchPendingLoans = async () => {
+    try {
+      const res = await api.get("/admin/pending-loans");
+      setPendingLoans(res.data);
+    } catch (e) {
+      console.error("Error fetching pending loans:", e);
+    }
+  };
+
+  const processLoan = async (loanId, action) => {
+    setLoanLoading(true);
+    const load = toast.loading(`${action === 'approve' ? 'Approving' : 'Rejecting'} loan...`);
+    try {
+      const res = await api.post(`/admin/loan/${loanId}/${action}`);
+      toast.success(res.data.message);
+      fetchPendingLoans();
+      // Refresh global stats since a loan approval changes total liquidity
+      api.get("/admin/dashboard").then((res) => setStats(res.data));
+    } catch (e) {
+      toast.error(e.response?.data?.error || "Error processing loan");
+    } finally {
+      toast.dismiss(load);
+      setLoanLoading(false);
+    }
+  };
+
+  const fetchSpatialLogs = async () => {
+    setSpatialLoading(true);
+    try {
+      const res = await api.get("/admin/spatial-logs");
+      setSpatialLogs(res.data);
+    } catch (e) {
+      console.error("Spatial Logs Error:", e);
+    } finally {
+      setSpatialLoading(false);
     }
   };
 
@@ -527,7 +576,7 @@ export default function Admin() {
         }}
       >
         <div
-          className="absolute left-0 top-0 bottom-0 z-20 flex items-center px-6 border-r glass shadow-[4px_0_12px_rgba(0,0,0,0.1)]"
+          className="absolute left-0 top-0 bottom-0 z-20 flex items-center px-6 lg:px-12 border-r glass shadow-[4px_0_12px_rgba(0,0,0,0.1)]"
           style={{
             borderColor: "var(--border-default)",
             background: "var(--bg-base)",
@@ -621,7 +670,7 @@ export default function Admin() {
         )}
       </div>
 
-      <div className="flex-1 w-full max-w-7xl mx-auto px-6 py-12">
+      <div className="flex-1 w-full max-w-none px-6 lg:px-12 py-12">
         <motion.div
           initial="hidden"
           animate="visible"
@@ -1241,7 +1290,7 @@ export default function Admin() {
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <motion.div
             initial="hidden"
             animate="visible"
@@ -1310,12 +1359,57 @@ export default function Admin() {
             )}
           </motion.div>
 
+          {/* SPATIAL FORENSICS: Impossible Travel Logs */}
+          <motion.div
+            initial="hidden" animate="visible" custom={9.5} variants={fadeUp}
+            className="rounded-3xl border p-6 glass flex flex-col"
+            style={{ borderColor: "rgba(59, 130, 246, 0.3)" }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+                <Network size={18} style={{ color: "#3b82f6" }} /> Spatial Interceptions
+              </h3>
+              <button onClick={fetchSpatialLogs} className={spatialLoading ? "animate-spin" : ""}>
+                 <Activity size={14} style={{ color: "var(--text-secondary)" }} />
+              </button>
+            </div>
+            
+            <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
+              {spatialLogs.length === 0 ? (
+                 <div className="h-32 flex flex-col items-center justify-center text-center opacity-40" style={{ color: "var(--text-secondary)" }}>
+                    <Server size={32} className="mb-2" />
+                    <p className="text-[10px] font-bold uppercase">No Spatial Blocks Logged</p>
+                 </div>
+              ) : (
+                spatialLogs.map((log, i) => (
+                  <div key={i} className="p-3 rounded-xl border bg-blue-500/5 border-blue-500/20">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-mono font-bold text-blue-400">{log.email}</span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500 text-white">INTERCEPTED</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp size={12} className="text-rose-500" />
+                      <span className="text-sm font-extrabold text-[var(--text-primary)]">{parseFloat(log.calculated_speed_kmh).toLocaleString()} KM/H</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[9px] text-[var(--text-secondary)] font-mono">
+                       <span className="opacity-50">FROM:</span> {log.prev_loc.replace('POINT(', '').replace(')', '')}
+                       <span className="mx-1">→</span>
+                       <span className="opacity-50">TO:</span> {log.current_loc.replace('POINT(', '').replace(')', '')}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-8 mb-8">
           <motion.div
             initial="hidden"
             animate="visible"
             custom={10}
             variants={fadeUp}
-            className="lg:col-span-2 rounded-3xl border p-6 flex flex-col glass"
+            className="rounded-3xl border p-6 flex flex-col glass"
             style={{ borderColor: "var(--border-default)" }}
           >
             <div className="flex items-center justify-between mb-6">
@@ -1449,10 +1543,95 @@ export default function Admin() {
             )}
           </motion.div>
 
+          {/* PHASE 4: LOAN CLEARANCE QUEUE */}
+          <motion.div
+            initial="hidden" animate="visible" custom={11} variants={fadeUp}
+            className="lg:col-span-2 rounded-3xl border p-6 glass overflow-hidden relative"
+            style={{ borderColor: "var(--border-default)" }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+                <BadgeDollarSign size={18} style={{ color: "var(--brand-primary)" }} /> Pending Loan Clearances
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  {pendingLoans.length} Awaiting Review
+                </span>
+                <button 
+                  onClick={fetchPendingLoans}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-base)] transition-colors"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <Activity size={14} className={loanLoading ? "animate-spin" : ""} />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                    <th className="pb-3 px-2 font-bold">Applicant</th>
+                    <th className="pb-3 px-2 font-bold">Capital</th>
+                    <th className="pb-3 px-2 font-bold">Heuristic Decision</th>
+                    <th className="pb-3 px-2 font-bold text-right">Clearance</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {pendingLoans.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="py-12 text-center text-xs italic" style={{ color: "var(--text-secondary)" }}>
+                         No pending capital requests in the queue.
+                      </td>
+                    </tr>
+                  ) : (
+                    pendingLoans.map((loan) => (
+                      <tr key={loan.id} className="border-t transition-colors hover:bg-[var(--bg-base)]" style={{ borderColor: 'var(--border-default)' }}>
+                        <td className="py-4 px-2">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-[var(--text-primary)]">{loan.email}</span>
+                            <span className="text-[10px] font-mono text-[var(--text-secondary)]">{loan.id.substring(0,8)}...</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-2">
+                          <span className="text-emerald-500 font-extrabold font-mono">${parseFloat(loan.amount).toLocaleString()}</span>
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="max-w-[200px] text-[10px] leading-tight opacity-80" style={{ color: 'var(--text-secondary)' }}>
+                            {loan.reason}
+                          </div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={() => processLoan(loan.id, 'reject')}
+                              disabled={loanLoading}
+                              className="px-3 py-1.5 rounded-lg text-[10px] font-bold border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 transition-all flex items-center gap-1"
+                            >
+                              <XCircle size={12} /> Veto
+                            </button>
+                            <button 
+                              onClick={() => processLoan(loan.id, 'approve')}
+                              disabled={loanLoading}
+                              className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-md hover:opacity-90 transition-all flex items-center gap-1"
+                              style={{ background: 'var(--brand-primary)' }}
+                            >
+                              <CheckCircle2 size={12} /> Approve
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+
           {/* EXPLAIN ANALYZE Panel */}
           <motion.div
             initial="hidden" animate="visible" custom={12} variants={fadeUp}
-            className="lg:col-span-2 rounded-3xl border p-6 glass"
+            className="lg:col-span-3 rounded-3xl border p-6 glass"
             style={{ borderColor: "var(--border-default)" }}
           >
             <div className="flex items-center justify-between mb-4">
@@ -1626,7 +1805,7 @@ export default function Admin() {
             </motion.div>
 
             {/* USER MANAGEMENT PANEL */}
-            <motion.div initial="hidden" animate="visible" custom={17} variants={fadeUp} className="rounded-3xl border p-6 glass lg:col-span-2" style={{ borderColor: 'var(--border-default)' }}>
+            <motion.div initial="hidden" animate="visible" custom={17} variants={fadeUp} className="lg:col-span-3 rounded-3xl border p-6 glass" style={{ borderColor: 'var(--border-default)' }}>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                   <Users size={18} style={{ color: "var(--brand-primary)" }} /> User Management Panel

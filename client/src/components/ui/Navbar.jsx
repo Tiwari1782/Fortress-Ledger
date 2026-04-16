@@ -11,7 +11,7 @@ export default function Navbar() {
 
     return (
         <nav className="w-full fixed top-0 z-50 glass" style={{ borderBottom: '1px solid var(--border-default)' }}>
-            <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div className="w-full px-6 lg:px-12 h-20 flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
                     <div className="p-2 rounded-xl text-white shadow-lg" style={{ background: 'var(--brand-primary)' }}>
                         <Shield size={20} strokeWidth={2.5} />

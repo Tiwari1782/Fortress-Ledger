@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SocketProvider } from './context/SocketContext';
 import { Toaster } from 'react-hot-toast';
 
 // Import Pages
@@ -17,6 +18,7 @@ import NotFound from './pages/NotFound';
 // Import Components
 import ProtectedRoute from './components/ProtectedRoute';
 import Footer from './components/ui/Footer';
+import Loader from './components/ui/Loader';
 
 const GlobalBackground = () => {
     const orbRef1 = useRef(null);
@@ -49,14 +51,29 @@ const GlobalBackground = () => {
 };
 
 export default function App() {
+  const [booting, setBooting] = useState(true);
+
+  useEffect(() => {
+     // Simulate initial node decrypt/handshake UX
+     const timer = setTimeout(() => {
+        setBooting(false);
+     }, 1800);
+     return () => clearTimeout(timer);
+  }, []);
+
+  if (booting) {
+     return <Loader text="Establishing Secure Link..." />;
+  }
+
   return (
     <Router>
       <ThemeProvider>
         <AuthProvider>
-          <GlobalBackground />
-          <div className="min-h-screen relative z-10 flex flex-col">
-            <div className="flex-grow">
-                <Routes>
+          <SocketProvider>
+            <GlobalBackground />
+            <div className="min-h-screen relative z-10 flex flex-col">
+              <div className="flex-grow">
+                  <Routes>
                   {/* Public Routes */}
                   <Route path="/" element={<Landing />} />
                   <Route path="/login" element={<Login />} />
@@ -105,6 +122,7 @@ export default function App() {
             {/* Global Footer */}
             <Footer />
           </div>
+          </SocketProvider>
         </AuthProvider>
         <Toaster
           position="top-right"
