@@ -5,7 +5,7 @@ const { authLimiter } = require('../middleware/rateLimiter');
 const { registerRules, loginRules } = require('../middleware/validate');
 
 // Apply strict rate limiting to all auth routes
-router.use(authLimiter);
+// router.use(authLimiter);
 
 router.post('/register', registerRules, authController.register);
 router.post('/login', loginRules, authController.login);

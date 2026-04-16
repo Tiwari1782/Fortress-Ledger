@@ -22,5 +22,6 @@ router.get('/transaction/:id', profileController.getTransactionDetails);
 router.get('/analytics', bankingController.getExpenseAnalytics);
 router.post('/scheduled', bankingController.createScheduledTransfer);
 router.get('/scheduled', bankingController.getScheduledTransfers);
+router.post('/loan', bankingController.requestLoan);
 
 module.exports = router;

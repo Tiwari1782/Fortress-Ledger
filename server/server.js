@@ -3,6 +3,8 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const http = require('http');
+const { Server } = require("socket.io");
 require('dotenv').config();
 
 // ============================================================================
@@ -90,10 +92,37 @@ app.use(errorHandler);
 // Server Startup & Graceful Shutdown
 // ============================================================================
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
+
+// Create HTTP server handling Express and Socket.IO
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+        credentials: true
+    }
+});
+
+// Make io accessible to our routers/controllers
+app.set('io', io);
+
+io.on("connection", (socket) => {
+    // A client connects. They can listen to global events by default.
+    
+    // Join a specific room based on account ID for private transfer notifications
+    socket.on("join_account", (account_no) => {
+        socket.join(account_no);
+    });
+
+    socket.on("disconnect", () => {
+        // Disconnected
+    });
+});
+
+const server = httpServer.listen(PORT, () => {
     console.log(`\n🏦 FortressLedger Server running on port ${PORT}`);
     console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`   Health check: http://localhost:${PORT}/health\n`);
+    console.log(`   Health check: http://localhost:${PORT}/health`);
+    console.log(`   WebSockets: ACTIVE\n`);
 });
 
 // Graceful shutdown handler
