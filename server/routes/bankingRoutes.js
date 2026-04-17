@@ -23,5 +23,6 @@ router.get('/analytics', bankingController.getExpenseAnalytics);
 router.post('/scheduled', bankingController.createScheduledTransfer);
 router.get('/scheduled', bankingController.getScheduledTransfers);
 router.post('/loan', bankingController.requestLoan);
+router.post('/batch-transfer', bankingController.processBatchTransfer);
 
 module.exports = router;

@@ -218,6 +218,120 @@ exports.getStatement = async (req, res) => {
 };
 
 // ============================================================================
+// BATCH PAYOUTS WITH SAVEPOINTS
+// ============================================================================
+exports.processBatchTransfer = async (req, res) => {
+    if (global.IS_GLOBAL_LOCKDOWN) {
+        return res.status(503).json({ error: 'DEFCON 1 ACTIVE: All financial networks are locked down.' });
+    }
+
+    const { batch } = req.body; // Expects array of { receiver_account_no, amount }
+    if (!Array.isArray(batch) || batch.length === 0) {
+        return res.status(400).json({ error: 'Invalid batch format' });
+    }
+
+    const connection = await db.getConnection();
+    const results = [];
+    let successfulTransfers = 0;
+
+    try {
+        await connection.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+        await connection.beginTransaction();
+
+        // 1. Get Sender Info once for the entire batch
+        const [senderRows] = await connection.execute(
+            'SELECT id, balance, status FROM accounts WHERE user_id = ? FOR UPDATE',
+            [req.user.id]
+        );
+        if (senderRows.length === 0) throw new Error('Sender account not found');
+        const sender = senderRows[0];
+        if (sender.status !== 'ACTIVE') throw new Error('Sender account is frozen');
+
+        let currentBalance = parseFloat(sender.balance);
+
+        // Process each transfer in the batch
+        for (let i = 0; i < batch.length; i++) {
+            const { receiver_account_no, amount } = batch[i];
+            const transferAmount = parseFloat(amount);
+            const savepointName = `batch_sp_${i}`;
+
+            // Create a SAVEPOINT for this specific transfer
+            await connection.query(`SAVEPOINT ${savepointName}`);
+
+            try {
+                if (transferAmount <= 0) throw new Error('Invalid amount');
+                if (currentBalance < transferAmount) throw new Error('Insufficient funds');
+
+                // Find receiver
+                const [receiverRows] = await connection.execute(
+                    'SELECT id, status FROM accounts WHERE account_no = ? FOR UPDATE',
+                    [receiver_account_no]
+                );
+                
+                if (receiverRows.length === 0) throw new Error('Receiver not found');
+                const receiver = receiverRows[0];
+
+                if (sender.id === receiver.id) throw new Error('Cannot transfer to yourself');
+                if (receiver.status !== 'ACTIVE') throw new Error('Receiver account frozen');
+
+                // Execute transfer for this specific iteration
+                await connection.execute(
+                    'UPDATE accounts SET balance = balance - ? WHERE id = ?',
+                    [transferAmount, sender.id]
+                );
+                await connection.execute(
+                    'UPDATE accounts SET balance = balance + ? WHERE id = ?',
+                    [transferAmount, receiver.id]
+                );
+
+                const txId = uuidv4();
+                await connection.execute(
+                    'INSERT INTO transactions (id, sender_id, receiver_id, amount, type) VALUES (?, ?, ?, ?, ?)',
+                    [txId, sender.id, receiver.id, transferAmount, 'TRANSFER']
+                );
+
+                // Update runtime tracking variable
+                currentBalance -= transferAmount;
+                successfulTransfers++;
+
+                results.push({
+                    receiver: receiver_account_no,
+                    amount: transferAmount,
+                    status: 'SUCCESS',
+                    transaction_id: txId
+                });
+
+            } catch (stepError) {
+                // PARTIAL ROLLBACK: Only undo this specific transfer, keeping the rest intact
+                await connection.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
+                
+                results.push({
+                    receiver: receiver_account_no,
+                    amount: transferAmount || 0,
+                    status: 'FAILED',
+                    error: stepError.message
+                });
+            }
+        }
+
+        // Commit all successful transactions in the batch
+        await connection.commit();
+
+        res.json({
+            message: `Batch processed. ${successfulTransfers}/${batch.length} successful.`,
+            results
+        });
+
+    } catch (criticalError) {
+        // Complete rollback if the entire batch process fails (e.g., sender issue)
+        await connection.rollback();
+        res.status(500).json({ error: criticalError.message || 'Critical batch failure' });
+    } finally {
+        connection.release();
+    }
+};
+
+// ============================================================================
 // PHASE 2 CUSTOMER ADDITIONS
 // ============================================================================
 
