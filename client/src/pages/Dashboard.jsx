@@ -7,7 +7,8 @@ import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Navbar from '../components/ui/Navbar';
-import { Vault, ArrowRight, ArrowDownLeft, ArrowUpRight, ShieldCheck, Activity, ScrollText, Calendar, BarChart2, Clock, AlertTriangle, Search, ChevronLeft, ChevronRight, FileDown, X, Filter } from 'lucide-react';
+import BatchTransferModal from '../components/BatchTransferModal';
+import { Vault, ArrowRight, ArrowDownLeft, ArrowUpRight, ShieldCheck, Activity, ScrollText, Calendar, BarChart2, Clock, AlertTriangle, Search, ChevronLeft, ChevronRight, FileDown, X, Filter, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: (i = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.5 } }) };
@@ -46,6 +47,7 @@ export default function Dashboard() {
     const [transferForm, setTransferForm] = useState({ receiver: '', amount: '', location: '' });
     const [showConfirm, setShowConfirm] = useState(false);
     const [isTransferring, setIsTransferring] = useState(false);
+    const [showBatchModal, setShowBatchModal] = useState(false);
 
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -321,6 +323,17 @@ export default function Dashboard() {
                 )}
             </AnimatePresence>
 
+            {/* BATCH PAYOUT MODAL */}
+            <BatchTransferModal 
+                isOpen={showBatchModal}
+                onClose={() => setShowBatchModal(false)}
+                currentBalance={balanceData?.balance}
+                onSuccess={() => {
+                    fetchBalance();
+                    fetchHistory(1);
+                }}
+            />
+
             {/* TRANSACTION DETAIL MODAL */}
             <AnimatePresence>
                 {selectedTx && (
@@ -409,7 +422,12 @@ export default function Dashboard() {
                                 </TiltCard>
 
                                 <div className="rounded-3xl p-6 sm:p-8 border bg-[var(--bg-card)] border-[var(--border-default)]">
-                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-[var(--text-primary)]"><Activity size={20} className="text-[var(--brand-primary)]"/> Execute Transfer</h3>
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)]"><Activity size={20} className="text-[var(--brand-primary)]"/> Execute Transfer</h3>
+                                        <button onClick={() => setShowBatchModal(true)} className="px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-2 transition-all hover:bg-[var(--bg-base)] text-[var(--brand-primary)] border-[var(--border-default)]">
+                                            <Users size={14} /> Batch Payouts
+                                        </button>
+                                    </div>
 
                                     <form onSubmit={handleTransferSubmit} className="space-y-4">
                                         <div>
