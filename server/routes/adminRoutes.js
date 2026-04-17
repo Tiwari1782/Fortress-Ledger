@@ -30,6 +30,7 @@ router.get('/dbms-concepts', adminController.getDbmsConcepts);
 router.get('/laundering-rings', adminController.getMoneyLaunderingRings);
 router.post('/point-in-time', adminController.getPointInTimeSnapshot);
 router.get('/system-monitor', adminController.getSystemMonitor);
+router.post('/isolation-test', adminController.runIsolationSimulation);
 
 // Phase 3 Advanced Routes
 router.get('/phase3-stats', adminController.getPhase3Stats);

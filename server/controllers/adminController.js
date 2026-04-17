@@ -1018,3 +1018,110 @@ exports.actionLoanRequest = async (req, res) => {
 };
 
 // Use global.IS_GLOBAL_LOCKDOWN for cross-module state
+
+// ============================================================================
+// ENGINE SANDBOX: MVCC ACADEMIC DEMONSTRATION
+// ============================================================================
+exports.runIsolationSimulation = async (req, res) => {
+    const { isolationLevel } = req.body;
+    if (!['READ UNCOMMITTED', 'READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE'].includes(isolationLevel)) {
+        return res.status(400).json({ error: 'Invalid isolation level' });
+    }
+
+    const log = [];
+    const timestamp = () => new Date().toISOString().split('T')[1].replace('Z','');
+    
+    // Acquire two completely separate connections to simulate two concurrent users
+    const connA = await db.getConnection(); // Writer
+    const connB = await db.getConnection(); // Reader
+
+    try {
+        log.push({ time: timestamp(), owner: 'SYSTEM', message: 'Initialized Connections A (Writer) and B (Reader).' });
+        
+        // 1. Setup Phase: Create deterministic state
+        await connA.execute('CREATE TEMPORARY TABLE IF NOT EXISTS isolation_test (id INT PRIMARY KEY, balance DECIMAL(10,2))');
+        await connA.execute('TRUNCATE TABLE isolation_test');
+        await connA.execute('INSERT INTO isolation_test (id, balance) VALUES (1, 1000.00)');
+        log.push({ time: timestamp(), owner: 'SYSTEM', message: 'Seeded test table with initial Balance: $1000.00.' });
+
+        // 2. Configure Isolation Levels for both
+        await connA.execute(`SET SESSION TRANSACTION ISOLATION LEVEL ${isolationLevel}`);
+        await connB.execute(`SET SESSION TRANSACTION ISOLATION LEVEL ${isolationLevel}`);
+        log.push({ time: timestamp(), owner: 'SYSTEM', message: `Set isolation level to ${isolationLevel} for both connections.` });
+
+        // Helper to delay execution (simulate network latency or slow queries)
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        // 3. The Race Condition
+        log.push({ time: timestamp(), owner: 'SYSTEM', message: '--- INITIATING RACE CONDITION ---' });
+
+        const [writerAction, readerAction] = await Promise.all([
+            // CONNECTION A (WRITER)
+            (async () => {
+                const myLog = [];
+                try {
+                    await connA.beginTransaction();
+                    myLog.push({ time: timestamp(), owner: 'WRITER', message: 'Started Transaction.' });
+
+                    await sleep(300); // Tiny wait to ensure reader is ready to block or read
+                    await connA.execute('UPDATE isolation_test SET balance = 9999.00 WHERE id = 1');
+                    myLog.push({ time: timestamp(), owner: 'WRITER', message: 'Updated Balance to $9999.00 (Uncommitted).' });
+
+                    await sleep(1500); // Hold the dirty state open so Reader can try to look at it
+
+                    await connA.rollback();
+                    myLog.push({ time: timestamp(), owner: 'WRITER', message: 'Transaction Failed! Rolled back to $1000.00.' });
+                    
+                    return myLog;
+                } catch (e) {
+                    await connA.rollback();
+                    myLog.push({ time: timestamp(), owner: 'WRITER', message: `Fatal Error: ${e.message}`, isError: true });
+                    return myLog;
+                }
+            })(),
+
+            // CONNECTION B (READER)
+            (async () => {
+                const myLog = [];
+                try {
+                    await sleep(500); // Give Writer a headstart to do the update
+                    
+                    await connB.beginTransaction();
+                    myLog.push({ time: timestamp(), owner: 'READER', message: 'Started Transaction.' });
+
+                    const [rows] = await connB.execute('SELECT balance FROM isolation_test WHERE id = 1');
+                    const readValue = rows[0].balance;
+                    
+                    // The core MVCC test result
+                    if (parseFloat(readValue) === 9999) {
+                        myLog.push({ time: timestamp(), owner: 'READER', message: `Read Balance: $${readValue}. DANGER: DIRTY READ DETECTED!`, highlight: 'rose' });
+                    } else if (parseFloat(readValue) === 1000) {
+                        myLog.push({ time: timestamp(), owner: 'READER', message: `Read Balance: $${readValue}. MVCC successfully returned the clean snapshot.`, highlight: 'emerald' });
+                    } else {
+                        myLog.push({ time: timestamp(), owner: 'READER', message: `Read Balance: $${readValue}.` });
+                    }
+
+                    await connB.commit();
+                    return myLog;
+                } catch (e) {
+                    await connB.rollback();
+                    // If it was SERIALIZABLE, the reader might get blocked and time out, or get a deadlock depending on exact timing.
+                    myLog.push({ time: timestamp(), owner: 'READER', message: `Blocked/Error: ${e.message}`, isError: true });
+                    return myLog;
+                }
+            })()
+        ]);
+
+        // Merge logs chronologically
+        const combinedLogs = [...log, ...writerAction, ...readerAction].sort((a, b) => a.time.localeCompare(b.time));
+
+        res.json({ logs: combinedLogs });
+
+    } catch (e) {
+        console.error("Simulation Error", e);
+        res.status(500).json({ error: 'Simulation engine crashed.' });
+    } finally {
+        connA.release();
+        connB.release();
+    }
+};

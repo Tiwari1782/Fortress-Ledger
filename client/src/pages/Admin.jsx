@@ -4,6 +4,8 @@ import { AuthContext } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../api/axios";
 import toast from 'react-hot-toast';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import Navbar from "../components/ui/Navbar";
 import {
   Search,
@@ -41,6 +43,9 @@ import {
   HardDrive,
   Database,
   Crown,
+  ChevronDown,
+  ShieldAlert,
+  Shield
 } from "lucide-react";
 import {
   AreaChart,
@@ -120,6 +125,12 @@ export default function Admin() {
   // Phase 4: Loan Clearance States
   const [pendingLoans, setPendingLoans] = useState([]);
   const [loanLoading, setLoanLoading] = useState(false);
+
+  // Engine Sandbox: MVCC
+  const [mvccIsolationLevel, setMvccIsolationLevel] = useState("READ UNCOMMITTED");
+  const [mvccLogs, setMvccLogs] = useState(null);
+  const [mvccLoading, setMvccLoading] = useState(false);
+  const [mvccDropdownOpen, setMvccDropdownOpen] = useState(false);
 
   // Phase 4: Spatial Forensic States
   const [spatialLogs, setSpatialLogs] = useState([]);
@@ -287,6 +298,21 @@ export default function Admin() {
       alert("Temporal rebuild failed: " + (err.response?.data?.error || ""));
     } finally {
       setTmLoading(false);
+    }
+  };
+
+  // Run MVCC Demonstration
+  const handleRunMvcc = async () => {
+    setMvccLoading(true);
+    setMvccLogs(null);
+    try {
+      const res = await api.post("/admin/isolation-test", { isolationLevel: mvccIsolationLevel });
+      setMvccLogs(res.data.logs);
+      toast.success("MVCC Engine test completed.", { position: "bottom-center" });
+    } catch (err) {
+      toast.error(err.response?.data?.error || "MVCC Simulation failed", { position: "bottom-center" });
+    } finally {
+      setMvccLoading(false);
     }
   };
 
@@ -1747,13 +1773,45 @@ export default function Admin() {
               <p className="text-xs mb-4 text-[var(--text-secondary)] leading-relaxed">
                   Traces infinite depths using <span className="font-mono text-[var(--brand-primary)]">WITH RECURSIVE</span> to find closed transfer loops (Money Laundering rings).
               </p>
-              <div className="space-y-4 max-h-[300px] overflow-y-auto">
-                 {launderingRings.length === 0 ? <p className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">No Closed Circuit Rings Flagged</p> : launderingRings.map((ring, i) => (
-                    <div key={i} className="p-3 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl text-xs font-mono break-all hover:border-[var(--brand-primary)] transition-colors">
-                       <span className="text-rose-500 font-bold uppercase tracking-wider text-[10px]">Ring Length Depth {ring.depth}:</span> <br/>
-                       <span className="text-[var(--text-primary)] leading-relaxed mt-1 block opacity-80">{ring.path}</span>
-                    </div>
-                 ))}
+              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                 {launderingRings.length === 0 ? <p className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">No Suspicious Chains Detected</p> : launderingRings.map((ring, i) => {
+                    const pathStr = ring.path || 'SYSTEM_NODE';
+                    const nodes = pathStr.split('->');
+                    return (
+                      <div key={i} className="p-4 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-2xl hover:border-[var(--brand-primary)] hover:shadow-[0_0_15px_rgba(5,150,105,0.1)] transition-all duration-300">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="inline-flex items-center gap-1.5 text-rose-500 font-bold uppercase tracking-wider text-[10px] bg-rose-500/10 px-2 py-0.5 rounded">
+                            <Network size={12} /> Suspicious Chain (Depth: {ring.depth})
+                          </span>
+                          <span className="text-[10px] font-mono font-bold" style={{ color: 'var(--text-secondary)' }}>Tx: #{ring.tx_id} • ${parseFloat(ring.amount).toLocaleString()}</span>
+                        </div>
+                        
+                        {/* Visual Graph Flow */}
+                        <div className="flex flex-wrap items-center gap-y-3">
+                          {nodes.map((nodeId, nIdx) => (
+                            <div key={nIdx} className="flex items-center">
+                              {/* Node */}
+                              <div className={`relative w-8 h-8 rounded-full flex items-center justify-center font-mono text-[10px] font-bold border-2 transition-transform duration-300 hover:scale-110 ${nIdx === 0 ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400 z-10' : nIdx === nodes.length - 1 ? 'bg-amber-500/10 border-amber-500 text-amber-400 z-10' : 'bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-primary)] z-10'}`}>
+                                {nodeId.substring(0, 3)}
+                                {/* Tooltip-like label */}
+                                <div className="absolute -bottom-4 text-[8px] uppercase tracking-wider font-sans opacity-70 whitespace-nowrap">
+                                  {nIdx === 0 ? 'Origin' : nIdx === nodes.length - 1 ? 'Terminal' : 'Interim'}
+                                </div>
+                              </div>
+                              
+                              {/* Connecting Arrow */}
+                              {nIdx < nodes.length - 1 && (
+                                <div className="flex items-center px-1">
+                                  <div className="w-4 h-[2px] bg-[var(--border-default)]"></div>
+                                  <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-[var(--border-default)]"></div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                 })}
               </div>
             </motion.div>
 
@@ -1766,9 +1824,23 @@ export default function Admin() {
                   Queries JSON diffs backwards in <span className="font-mono text-[var(--brand-primary)]">audit_logs</span> to reverse-engineer exact historical balance state.
               </p>
               <form onSubmit={handleTimeMachine} className="space-y-3 mb-4">
-                  <input required value={timeMachineForm.account_no} onChange={e => setTimeMachineForm({...timeMachineForm, account_no: e.target.value})} type="text" placeholder="Account No" className="w-full p-3 text-xs font-mono rounded-xl bg-[var(--bg-base)] border border-[var(--border-default)] outline-emerald-500 text-[var(--text-primary)] focus:ring-1" />
-                  <input required value={timeMachineForm.target_time} onChange={e => setTimeMachineForm({...timeMachineForm, target_time: e.target.value})} type="datetime-local" className="w-full p-3 text-xs font-mono rounded-xl bg-[var(--bg-base)] border border-[var(--border-default)] outline-emerald-500 text-[var(--text-primary)] focus:ring-1" />
-                  <button type="submit" disabled={tmLoading} className="w-full py-3 mt-2 bg-[var(--brand-primary)] hover:opacity-90 transition-opacity text-white text-xs font-bold rounded-xl shadow-lg flex justify-center items-center gap-2">
+                  <input required value={timeMachineForm.account_no} onChange={e => setTimeMachineForm({...timeMachineForm, account_no: e.target.value})} type="text" placeholder="Account No" className="w-full p-3 text-xs font-mono rounded-xl bg-[var(--bg-base)] border border-[var(--border-default)] outline-[var(--brand-primary)] text-[var(--text-primary)] focus:ring-1 focus:ring-[var(--brand-primary)]" />
+                  
+                  {/* Custom Date Picker to replace native browser popups */}
+                  <DatePicker
+                    required
+                    selected={timeMachineForm.target_time ? new Date(timeMachineForm.target_time) : null}
+                    onChange={(date) => setTimeMachineForm({...timeMachineForm, target_time: date ? date.toISOString() : ""})}
+                    showTimeSelect
+                    timeFormat="h:mm aa"
+                    timeIntervals={15}
+                    dateFormat="MMMM d, yyyy h:mm aa"
+                    placeholderText="Select exact historical time..."
+                    className="w-full p-3 text-xs font-mono rounded-xl bg-[var(--bg-base)] border border-[var(--border-default)] outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--brand-primary)] transition-all hover:border-[var(--brand-primary)]"
+                    wrapperClassName="w-full custom-datepicker-wrapper"
+                  />
+
+                  <button type="submit" disabled={tmLoading} className="w-full py-3 mt-2 bg-[var(--brand-primary)] hover:opacity-90 transition-opacity text-white text-xs font-bold rounded-xl shadow-[0_4px_14px_0_rgba(5,150,105,0.39)] flex justify-center items-center gap-2">
                     {tmLoading ? <Activity size={14} className="animate-spin" /> : <History size={14} />} {tmLoading ? "Reversing Time Diffs..." : "Reconstruct Balance"}
                   </button>
               </form>
@@ -2094,6 +2166,134 @@ export default function Admin() {
             </button>
           </motion.div>
 
+        </div>
+
+        {/* ROW 9: ENGINE SANDBOX - MVCC ACADEMIC DEMONSTRATION */}
+        <div className="grid grid-cols-1 mt-8">
+          <motion.div initial="hidden" animate="visible" custom={18} variants={fadeUp} className="rounded-3xl border p-6 sm:p-8 glass shadow-2xl relative overflow-hidden" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-card)' }}>
+             {/* Background Decoration */}
+             <div className="absolute top-0 right-0 w-[500px] h-[500px] opacity-[0.03] pointer-events-none transform translate-x-1/3 -translate-y-1/3">
+                 <HardDrive size={500} style={{ color: 'var(--brand-primary)' }} />
+             </div>
+
+             <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 pb-6 border-b z-10 relative" style={{ borderColor: 'var(--border-default)' }}>
+                <div className="flex-1 pr-4">
+                  <h3 className="text-2xl font-extrabold flex items-center gap-3 mb-2" style={{ color: "var(--text-primary)" }}>
+                    <Database size={24} style={{ color: "var(--brand-primary)" }} /> Engine Sandbox: MVCC
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)] xl:w-5/6 leading-relaxed">
+                    Test the **InnoDB Multi-Version Concurrency Control**. This tool explicitly opens two parallel database connections to race against each other. Connection A acts as a hacker temporarily altering data, while Connection B acts relative to the active Isolation Level.
+                  </p>
+                </div>
+                <div className="mt-4 sm:mt-0 flex items-center gap-3 shrink-0">
+                  
+                  {/* CUSTOM STYLED DROPDOWN */}
+                  <div className="relative">
+                    <button 
+                      onClick={() => setMvccDropdownOpen(!mvccDropdownOpen)}
+                      className="flex items-center justify-between w-[280px] py-2.5 px-4 rounded-xl border bg-[var(--bg-base)] transition-all hover:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)] outline-none shadow-sm"
+                      style={{ borderColor: 'var(--border-default)', color: 'var(--text-primary)' }}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {mvccIsolationLevel === 'READ UNCOMMITTED' && <ShieldAlert size={14} className="text-rose-500" />}
+                        {mvccIsolationLevel === 'READ COMMITTED' && <Shield size={14} className="text-amber-500" />}
+                        {mvccIsolationLevel === 'REPEATABLE READ' && <ShieldCheck size={14} className="text-emerald-500" />}
+                        {mvccIsolationLevel === 'SERIALIZABLE' && <Lock size={14} className="text-indigo-500" />}
+                        <span className="font-bold text-[11px] uppercase tracking-wider">{
+                          mvccIsolationLevel === 'READ UNCOMMITTED' ? 'READ UNCOMMITTED (Dirty Reads)' :
+                          mvccIsolationLevel === 'REPEATABLE READ' ? 'REPEATABLE READ (Default)' :
+                          mvccIsolationLevel
+                        }</span>
+                      </div>
+                      <ChevronDown size={14} className={`transition-transform duration-200 ${mvccDropdownOpen ? 'rotate-180' : ''}`} style={{ color: 'var(--text-secondary)' }} />
+                    </button>
+
+                    {mvccDropdownOpen && (
+                      <>
+                        {/* Invisible backdrop to close dropdown when clicking outside */}
+                        <div className="fixed inset-0 z-40" onClick={() => setMvccDropdownOpen(false)}></div>
+                        
+                        <div className="absolute top-full right-0 w-[280px] mt-2 p-1.5 rounded-2xl border shadow-[0_10px_40px_rgba(0,0,0,0.1)] z-50 overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)' }}>
+                          {[
+                            { val: 'READ UNCOMMITTED', text: 'READ UNCOMMITTED (Dirty Reads)', icon: ShieldAlert, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+                            { val: 'READ COMMITTED', text: 'READ COMMITTED', icon: Shield, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                            { val: 'REPEATABLE READ', text: 'REPEATABLE READ (Default)', icon: ShieldCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                            { val: 'SERIALIZABLE', text: 'SERIALIZABLE', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+                          ].map(opt => (
+                            <button
+                              key={opt.val}
+                              onClick={() => { setMvccIsolationLevel(opt.val); setMvccDropdownOpen(false); }}
+                              className="w-full flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-[var(--bg-hover)] text-left"
+                            >
+                              <div className={`p-1.5 rounded-full ${opt.bg}`}>
+                                <opt.icon size={14} className={opt.color} />
+                              </div>
+                              <span className="font-bold text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>{opt.text}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button 
+                    onClick={handleRunMvcc} 
+                    disabled={mvccLoading}
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-[0_0_15px_rgba(5,150,105,0.3)] transition-all hover:opacity-90 disabled:opacity-50 flex items-center gap-2 tracking-wide"
+                    style={{ background: 'var(--brand-primary)' }}
+                  >
+                    {mvccLoading ? <Activity size={14} className="animate-spin" /> : <TerminalSquare size={14} />} 
+                    EXECUTE TEST
+                  </button>
+                </div>
+             </div>
+
+             {/* Output Console Base */}
+             <div className="rounded-2xl border bg-[#0A0A0A] p-4 min-h-[300px] overflow-hidden relative font-mono text-[11px]" style={{ borderColor: 'var(--border-default)' }}>
+                {!mvccLogs && !mvccLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center flex-col text-slate-500">
+                    <TerminalSquare size={32} className="mb-3 opacity-20" />
+                    <p>Awaiting Execution Command...</p>
+                  </div>
+                )}
+                
+                {mvccLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center flex-col text-[var(--brand-primary)]">
+                    <Activity size={32} className="mb-3 animate-spin" />
+                    <p className="animate-pulse">Opening connections and forging race condition...</p>
+                  </div>
+                )}
+
+                {/* Display Logs */}
+                {mvccLogs && !mvccLoading && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-800">
+                    {/* Writer Split */}
+                    <div className="bg-[#0A0A0A] p-4 flex flex-col space-y-3">
+                      <div className="text-slate-500 font-bold tracking-wider uppercase mb-2 border-b border-slate-800 pb-2">Conn A (Writer)</div>
+                      {mvccLogs.filter(L => L.owner === 'WRITER' || L.owner === 'SYSTEM').map((log, i) => (
+                        <div key={i} className={`flex gap-3 leading-loose ${log.owner === 'SYSTEM' ? 'text-slate-500/50' : 'text-slate-300'}`}>
+                          <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                          <span className={log.isError ? 'text-rose-400' : ''}>{log.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Reader Split */}
+                    <div className="bg-[#0A0A0A] p-4 flex flex-col space-y-3">
+                      <div className="text-slate-500 font-bold tracking-wider uppercase mb-2 border-b border-slate-800 pb-2">Conn B (Reader)</div>
+                      {mvccLogs.filter(L => L.owner === 'READER' || L.owner === 'SYSTEM').map((log, i) => (
+                        <div key={i} className={`flex gap-3 leading-loose ${log.owner === 'SYSTEM' ? 'text-slate-500/50' : log.highlight === 'rose' ? 'text-rose-400 font-bold' : log.highlight === 'emerald' ? 'text-emerald-400 font-bold' : 'text-slate-300'}`}>
+                          <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                          <span className={log.isError ? 'text-rose-400' : ''}>
+                            {log.message}
+                            {log.highlight === 'rose' && <span className="block mt-1 text-[10px] text-rose-500 opacity-80">This highlights exactly why banks DO NOT use READ UNCOMMITTED! Conn B read uncommitted data instantly exposing a false balance.</span>}
+                            {log.highlight === 'emerald' && <span className="block mt-1 text-[10px] text-emerald-500 opacity-80">MVCC snapshot correctly withheld the uncommitted data. Clean read!</span>}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+             </div>
+          </motion.div>
         </div>
 
       </div>
