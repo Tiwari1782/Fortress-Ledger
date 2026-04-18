@@ -253,28 +253,88 @@ FortressLedger/
 
 ---
 
-## 🏛️ Database Architecture
+## 🏛️ Database Architecture & Reverse Engineered Diagram
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│     Users       │     │    Accounts     │     │  Transactions   │
-│─────────────────│     │─────────────────│     │─────────────────│
-│ id (PK)         │◄────┤ user_id (FK)    │◄────┤ sender_id (FK)  │
-│ email (Unique)  │     │ account_no (U)  │     │ receiver_id (FK)│
-│ password_hash   │     │ balance (>=0)   │     │ amount          │
-│ role (ADM/CUST) │     │ status (A/F)    │     │ created_at      │
-└─────────────────┘     └────────┬────────┘     └─────────────────┘
-                                 │
-                                 ▼ Trigger
-                        ┌─────────────────┐
-                        │    AuditLogs    │
-                        │─────────────────│
-                        │ id (PK)         │
-                        │ entity_id       │
-                        │ old_value       │
-                        │ new_value       │
-                        │ timestamp       │
-                        └─────────────────┘
+Fortress Ledger's relational integrity is enforced by a strictly normalized schema, optimized for forensic traceability.
+
+```mermaid
+erDiagram
+    USERS ||--o{ ACCOUNTS : "owns"
+    USERS ||--o{ SECURITY_EVENTS : "triggers"
+    USERS ||--o{ AUDIT_LOGS : "performed (admin)"
+    ACCOUNTS ||--o{ TRANSACTIONS : "sender/receiver"
+    ACCOUNTS ||--o{ MONTHLY_STATEMENTS : "summarized in"
+    ACCOUNTS ||--o{ FRAUD_SUMMARY : "monitored for"
+
+    USERS {
+        VARCHAR(36) id PK
+        VARCHAR(100) full_name
+        VARCHAR(100) email UK
+        VARCHAR(255) password_hash
+        ENUM role "ADMIN, CUSTOMER"
+        ENUM status "ACTIVE, LOCKED"
+        TIMESTAMP created_at
+    }
+
+    ACCOUNTS {
+        VARCHAR(36) id PK
+        VARCHAR(36) user_id FK
+        VARCHAR(12) account_no UK
+        DECIMAL balance "CHECK(balance >= 0)"
+        ENUM status "ACTIVE, FROZEN"
+        TIMESTAMP created_at
+    }
+
+    TRANSACTIONS {
+        VARCHAR(36) id PK
+        VARCHAR(36) sender_id FK
+        VARCHAR(36) receiver_id FK
+        DECIMAL amount
+        ENUM type "TRANSFER, DEPOSIT, WITHDRAWAL"
+        VARCHAR(255) description
+        ENUM status "PENDING, SUCCESS, FAILED"
+        TIMESTAMP created_at
+    }
+
+    AUDIT_LOGS {
+        INT id PK
+        VARCHAR(50) entity_type
+        VARCHAR(36) entity_id
+        VARCHAR(50) action
+        JSON old_value
+        JSON new_value
+        VARCHAR(36) admin_id FK
+        TIMESTAMP created_at
+    }
+
+    SECURITY_EVENTS {
+        INT id PK
+        VARCHAR(36) user_id FK
+        VARCHAR(50) event_type "LOGIN_FAIL, SUSPICIOUS_IP"
+        VARCHAR(45) ip_address
+        TEXT user_agent
+        TIMESTAMP created_at
+    }
+
+    MONTHLY_STATEMENTS {
+        INT id PK
+        VARCHAR(36) account_id FK
+        VARCHAR(36) tx_id
+        DATE tx_date
+        DECIMAL debit
+        DECIMAL credit
+        DECIMAL running_balance
+        VARCHAR(7) statement_period
+    }
+
+    FRAUD_SUMMARY {
+        INT id PK
+        VARCHAR(36) sender_id FK
+        VARCHAR(12) account_no
+        INT tx_count
+        DECIMAL total_volume
+        TIMESTAMP window_start
+    }
 ```
 
 ---
