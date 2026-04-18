@@ -201,7 +201,9 @@ export default function Admin() {
         .catch((e) => console.error("Backup Info Error:", e));
 
       fetchPendingLoans();
-      fetchSpatialLogs();
+      api.get("/admin/window-analytics")
+        .then((res) => setWindowData(res.data))
+        .catch((e) => console.error("Window Analytics Error:", e));
     } catch (err) {
       if (
         err.response &&
@@ -1386,51 +1388,6 @@ export default function Admin() {
             )}
           </motion.div>
 
-          {/* SPATIAL FORENSICS: Impossible Travel Logs */}
-          <motion.div
-            initial="hidden" animate="visible" custom={9.5} variants={fadeUp}
-            className="rounded-3xl border p-6 glass flex flex-col"
-            style={{ borderColor: "rgba(59, 130, 246, 0.3)" }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-                <Network size={18} style={{ color: "#3b82f6" }} /> Spatial Interceptions
-              </h3>
-              <button onClick={fetchSpatialLogs} className={spatialLoading ? "animate-spin" : ""}>
-                 <Activity size={14} style={{ color: "var(--text-secondary)" }} />
-              </button>
-            </div>
-            
-            <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
-              {spatialLogs.length === 0 ? (
-                 <div className="h-32 flex flex-col items-center justify-center text-center opacity-40" style={{ color: "var(--text-secondary)" }}>
-                    <Server size={32} className="mb-2" />
-                    <p className="text-[10px] font-bold uppercase">No Spatial Blocks Logged</p>
-                 </div>
-              ) : (
-                spatialLogs.map((log, i) => (
-                  <div key={i} className="p-3 rounded-xl border bg-blue-500/5 border-blue-500/20">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-mono font-bold text-blue-400">{log.email}</span>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500 text-white">INTERCEPTED</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp size={12} className="text-rose-500" />
-                      <span className="text-sm font-extrabold text-[var(--text-primary)]">{parseFloat(log.calculated_speed_kmh).toLocaleString()} KM/H</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[9px] text-[var(--text-secondary)] font-mono">
-                       <span className="opacity-50">FROM:</span> {log.prev_loc.replace('POINT(', '').replace(')', '')}
-                       <span className="mx-1">→</span>
-                       <span className="opacity-50">TO:</span> {log.current_loc.replace('POINT(', '').replace(')', '')}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 mb-8">
           <motion.div
             initial="hidden"
             animate="visible"
@@ -1508,6 +1465,7 @@ export default function Admin() {
             </div>
           </motion.div>
         </div>
+
 
         {/* ROW 6: Advanced DBMS Feature Panels */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
@@ -1972,25 +1930,6 @@ export default function Admin() {
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                 <Trophy size={18} style={{ color: '#f59e0b' }} /> Window Functions Leaderboard
               </h3>
-              <button
-                onClick={async () => {
-                  setWindowLoading(true);
-                  try {
-                    const res = await api.get('/admin/window-analytics');
-                    setWindowData(res.data);
-                  } catch (e) {
-                    toast.error('Failed to load window analytics');
-                  } finally {
-                    setWindowLoading(false);
-                  }
-                }}
-                disabled={windowLoading}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#f59e0b' }}
-              >
-                {windowLoading ? <Activity size={12} className="animate-spin" /> : <TrendingUp size={12} />}
-                {windowLoading ? 'Computing...' : 'Run Analytics'}
-              </button>
             </div>
             <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Uses <span className="font-mono text-[var(--brand-primary)]">RANK()</span>, <span className="font-mono text-[var(--brand-primary)]">DENSE_RANK()</span>, <span className="font-mono text-[var(--brand-primary)]">NTILE(4)</span>, <span className="font-mono text-[var(--brand-primary)]">LAG()</span>, <span className="font-mono text-[var(--brand-primary)]">LEAD()</span>, <span className="font-mono text-[var(--brand-primary)]">ROW_NUMBER()</span>, and <span className="font-mono text-[var(--brand-primary)]">SUM() OVER</span> window functions.
@@ -2075,12 +2014,7 @@ export default function Admin() {
                   ))}
                 </div>
               </div>
-            ) : (
-              <div className="h-[200px] flex flex-col items-center justify-center gap-3" style={{ color: 'var(--text-secondary)' }}>
-                <Trophy size={40} className="opacity-20" />
-                <p className="text-xs font-bold uppercase tracking-wider">Click "Run Analytics" to execute window functions</p>
-              </div>
-            )}
+            ) : null}
           </motion.div>
 
           {/* Database Backup Panel */}

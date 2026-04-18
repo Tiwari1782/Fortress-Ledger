@@ -494,7 +494,7 @@ exports.getAllUsers = async (req, res) => {
 
 // DELETE /api/admin/user/:id — Delete a user and cascade
 exports.deleteUser = async (req, res) => {
-    const userId = parseInt(req.params.id);
+    const userId = req.params.id;
     if (userId === req.user.id) {
         return res.status(400).json({ error: 'Cannot delete your own admin account' });
     }

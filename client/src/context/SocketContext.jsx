@@ -59,7 +59,7 @@ export const SocketProvider = ({ children }) => {
     return (
         <SocketContext.Provider value={{ socket, isDefconActive }}>
             {children}
-            {isDefconActive && (
+            {isDefconActive && user?.role !== 'ADMIN' && (
                 <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-rose-950/90 backdrop-blur-3xl overflow-hidden pointer-events-auto">
                     <style>{`
                         @keyframes defcon-strobe {
