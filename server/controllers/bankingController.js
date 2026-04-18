@@ -88,6 +88,16 @@ exports.transfer = async (req, res) => {
             ? [senderId, receiverId]
             : [receiverId, senderId];
 
+        // 🟢 MATRIX EMIT: Global live notification for dashboard visualization
+        const io = req.app.get('io');
+        if (io) {
+            io.emit("matrix_lock_request", {
+                txId: `TX-LIVE-${Date.now().toString().slice(-4)}`,
+                senderId: senderId,
+                receiverId: receiverId
+            });
+        }
+
         // Acquire locks in deterministic order
         await connection.execute(
             'SELECT id, balance, status FROM accounts WHERE id = ? FOR UPDATE',
@@ -144,7 +154,6 @@ exports.transfer = async (req, res) => {
         await connection.commit();
 
         // 7. EMIT: Real-time socket notification to receiver
-        const io = req.app.get('io');
         if (io) {
             // we need the receiver's actual account no to emit to their room
             const [ra] = await db.execute('SELECT account_no FROM accounts WHERE id=?', [receiver.id]);
@@ -161,6 +170,12 @@ exports.transfer = async (req, res) => {
     } catch (error) {
         await connection.rollback();
         
+        // DETECTION: Database Level Deadlocks
+        if (error.code === 'ER_LOCK_DEADLOCK' || (error.message && error.message.includes('Deadlock found'))) {
+            const io = req.app.get('io');
+            if (io) io.emit("matrix_deadlock", { message: "Mutex cycle detected & killed by InnoDB" });
+        }
+
         // DETECTION: Geographic Interception
         if (error.message && error.message.includes('IMPOSSIBLE_TRAVEL')) {
             const [speed] = error.message.split('|')[1].split(' '); // Capture KM/H from SQL signal

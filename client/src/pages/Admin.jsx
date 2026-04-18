@@ -885,7 +885,7 @@ export default function Admin() {
                 style={{ color: "var(--text-primary)" }}
               >
                 <Activity size={18} style={{ color: "var(--brand-primary)" }} />{" "}
-                Network Volume (24h)
+                Network Volume (30 Days)
               </h3>
               <span
                 className="text-[10px] uppercase font-bold border px-2 py-1 rounded-md"

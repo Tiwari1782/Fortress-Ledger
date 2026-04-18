@@ -184,7 +184,8 @@ export default function LockMatrix() {
   const drawNode = useCallback((node, ctx, globalScale) => {
     const isAcc = node.group === 'account';
     const isDL = node.isDeadlocked;
-    const size = isAcc ? 8 : (isDL ? 6 : 4);
+    // Increased default sizes: Accounts from 8->12, Deadlocks 6->9, TX 4->6
+    const size = isAcc ? 12 : (isDL ? 9 : 6);
     
     ctx.beginPath();
     if (isAcc) {
@@ -203,7 +204,7 @@ export default function LockMatrix() {
     ctx.fill();
     
     if (isAcc) {
-      const fontSize = 11/globalScale;
+      const fontSize = 13/globalScale; // Increased font size
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
