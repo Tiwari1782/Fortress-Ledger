@@ -9,7 +9,7 @@
 > **"In digital finance, 'close enough' is a catastrophe. We built Fortress Ledger because your data integrity shouldn't depend on luck. It should be enforced by the absolute laws of ACID compliance, Row-Level Locking, and Forensic Auditing."**
 
 <a href="#" target="_blank">
-  <img src="https://img.shields.io/badge/%20Live%20Demo-Launch%20FORTRESS-00D4FF?style=for-the-badge&labelColor=1A9E5E" alt="Live Demo" />
+  <img src="https://img.shields.io/badge/%20Live%20Demo-Launch%20FORTRESS-1A9E5E?style=for-the-badge&labelColor=0A0F1E" alt="Live Demo" />
 </a>
 
 [![MERN Stack](https://img.shields.io/badge/Stack-MERN-00D4FF?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
