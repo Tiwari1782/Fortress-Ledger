@@ -105,12 +105,12 @@ exports.getChartData = async (req, res) => {
     try {
         const queryFlow = `
             SELECT 
-                DATE_FORMAT(created_at, '%H:00') AS time, 
+                DATE_FORMAT(created_at, '%b %d') AS time, 
                 SUM(amount) AS volume,
                 COUNT(id) AS tx_count
             FROM transactions 
-            WHERE created_at >= NOW() - INTERVAL 24 HOUR 
-            GROUP BY DATE_FORMAT(created_at, '%H:00') 
+            WHERE created_at >= NOW() - INTERVAL 30 DAY 
+            GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d'), DATE_FORMAT(created_at, '%b %d')
             ORDER BY MAX(created_at) ASC
         `;
         const [flowRows] = await db.execute(queryFlow);
