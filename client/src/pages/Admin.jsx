@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Navbar from "../components/ui/Navbar";
+import LockMatrix from "../components/LockMatrix";
 import {
   Search,
   AlertTriangle,
@@ -2166,6 +2167,11 @@ export default function Admin() {
             </button>
           </motion.div>
 
+        </div>
+
+        {/* ROW 8.5: NEURAL LOCK MATRIX VISUALIZER */}
+        <div className="grid grid-cols-1 mt-8">
+           <LockMatrix />
         </div>
 
         {/* ROW 9: ENGINE SANDBOX - MVCC ACADEMIC DEMONSTRATION */}
