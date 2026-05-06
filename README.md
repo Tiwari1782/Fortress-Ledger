@@ -6,18 +6,13 @@
 
 ![Fortress Ledger Preview](Screenshot/home.png)
 
-> **"In digital finance, 'close enough' is a catastrophe. We built Fortress Ledger because your data integrity shouldn't depend on luck. It should be enforced by the absolute laws of ACID compliance, Row-Level Locking, and Forensic Auditing."**
+> **"In digital finance, 'close enough' is a catastrophe. We built Fortress Ledger because your data integrity shouldn't depend on luck — it should be enforced by the absolute laws of ACID compliance, Row-Level Locking, and Forensic Auditing."**
 
-<a href="#" target="_blank">
-  <img src="https://img.shields.io/badge/%20Live%20Demo-Launch%20FORTRESS-1A9E5E?style=for-the-badge&labelColor=0A0F1E" alt="Live Demo" />
-</a>
-
-[![MERN Stack](https://img.shields.io/badge/Stack-MERN-00D4FF?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![MySQL](https://img.shields.io/badge/Database-MySQL_8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/License-MIT-EF4444?style=for-the-badge)](/)
+[![License](https://img.shields.io/badge/License-MIT-EF4444?style=for-the-badge)](LICENSE)
 
 </div>
 
@@ -25,187 +20,135 @@
 
 ## 🔴 The Problem — Why Fortress Ledger Exists
 
-In the world of professional digital finance, most "banking" applications are dangerously fragile. They treat financial transactions as simple CRUD operations. If a server crashes mid-transfer or two users withdraw simultaneously, balances drift, audit logs disappear, and system integrity collapses.
+Most "banking" applications are dangerously fragile. They treat financial transactions as simple CRUD operations. If a server crashes mid-transfer or two users withdraw simultaneously, balances drift, audit logs vanish, and system integrity collapses.
 
-### The Integrity Gap
-
-**1. The "Race Condition" Nightmare**
-
-Standard application layers are fundamentally too slow to catch sub-millisecond race conditions. Without strict `SERIALIZABLE` isolation at the database level, concurrent requests can trigger "double-spending"—allowing a user to withdraw more money than they actually possess because the system hasn't finished updating the balance from the first request.
-
-**2. The Forensic Void**
-
-When a discrepancy occurs, standard logs are almost always insufficient. They tell you *who* logged in, but not exactly *what* the row state was before and after a split-second modification. Without an immutable, trigger-based forensic engine, reconstructing a high-fidelity audit trail for compliance is impossible.
-
-**3. Fragmented Security & RBAC**
-
-Securing a financial platform requires more than just a login page. Most systems fail at Row-Level Security (RLS) and multi-factor validation, leaving horizontal privilege escalation as a constant threat. Independent analysts and security auditors lack a unified "War Room" interface to monitor global liquidity and fraud velocity in real-time.
-
-**4. The Compliance Paywall**
-
-Enterprise-grade banking core systems cost millions. Small institutions, fintech startups, and data science students are locked out of high-fidelity DBMS environments, creating a massive knowledge gap in how mission-critical financial software is actually built.
+| The Gap | The Consequence |
+|---|---|
+| **Race Conditions** | Two concurrent withdrawals both pass the balance check → double-spend |
+| **Forensic Void** | Standard logs say *who* logged in, not *what changed* at the row level |
+| **Fragmented Security** | No Row-Level Security → horizontal privilege escalation |
+| **Missing Fraud Detection** | No velocity analysis → bots drain accounts undetected |
 
 ---
 
-## ⚡ The Solution — Fortress Ledger
+## ⚡ The Solution
 
-Fortress Ledger is a transaction-first, ACID-compliant financial ecosystem that eliminates these failure points through rigorous relational logic and real-time forensic analytics.
+Fortress Ledger moves the source of truth from the fragile application layer back into the hardened DBMS. Every critical operation — locking, auditing, fraud detection, loan underwriting — is enforced at the database level where it cannot be bypassed.
 
 | The Gap | How Fortress Ledger Closes It |
-|---------|----------------------|
-| **Race Conditions** | `SERIALIZABLE` Isolation + `FOR UPDATE` Row-Level Locking ensures zero double-spending |
-| **Forensic Void** | Database-level `AFTER UPDATE` Triggers capture immutable state snapshots automatically |
-| **Fragmented Security**| Centralized RBAC + JWT Http-Only cookies + Database `CHECK` constraints (No negative balances) |
-| **Compliance Paywall** | Open-source enterprise architecture. $0 to run. Professional-grade auditing democratized |
-
----
-
-## 🎯 What Makes Fortress Ledger Different
-
-Unlike standard MERN apps, Fortress Ledger moves the "Source of Truth" from the fragile application layer back into the hardened Database Management System (DBMS). It implements **Double-Entry Bookkeeping** logic at the core.
-
-```
-Request Transfer $100  →  Verify Sender ACTIVE  →  Lock Rows (FOR UPDATE)
-Update Sender (-100)   →  Update Receiver (+100) →  Log Audit Snapshot
-Verify Balance >= 0    →  INSERT Transaction    →  COMMIT / ROLLBACK
-```
-
-### Competitor Comparison
-
-| Capability | Basic CRUD App | Typical Fintech SPA | **Fortress Ledger** |
-|------------|:-:|:-:|:-:|
-| Atomic Transfers | ❌ | ⚠️ (App-level) | ✅ (DB-level) |
-| Row-Level Locking | ❌ | ❌ | ✅ |
-| Immutable Audit Triggers | ❌ | ❌ | ✅ |
-| **Fraud Velocity Analytics** | ❌ | ⚠️ | ✅ |
-| **Real-Time Forensic Dash** | ❌ | ❌ | ✅ |
-| **ACID Compliance** | ❌ | ✅ | ✅ |
-| **Double-Entry Logic** | ❌ | ❌ | ✅ |
-| **Negative Balance Block** | ❌ | ❌ | ✅ |
+|---|---|
+| **Race Conditions** | `SERIALIZABLE` isolation + `FOR UPDATE` row-level locking |
+| **Forensic Void** | `AFTER INSERT/UPDATE` triggers write immutable JSON row-diffs with a SHA-256 hash chain |
+| **Fragmented Security** | JWT HttpOnly cookies + RBAC + `CHECK (balance >= 0)` at the schema level |
+| **Fraud Detection** | Spatial impossible-travel trigger + fraud velocity materialized view + scheduled event refresh |
 
 ---
 
 ## ✨ Core Features
 
-### 💎 Feature 1 — Atomic Transfer Engine *(The Core Integrity)*
+### 💎 Atomic Transfer Engine
+- `SERIALIZABLE` isolation prevents all phantom reads and double-spends
+- Canonical lock ordering (lower UUID first) eliminates deadlocks mathematically
+- `sp_atomic_transfer` stored procedure: 1 network call instead of 6+ queries
+- Full ROLLBACK on any failure — money is never partially moved
 
-The engine that ensures money is never lost or duplicated. Fortress Ledger uses manual transaction management to guarantee atomicity.
+### 🔍 Forensic Audit System
+- Trigger-based auditing on every INSERT/UPDATE across `users`, `accounts`, `transactions`
+- Full JSON row-diffs (`old_value` / `new_value`) captured automatically
+- SHA-256 chained hash on every audit row — retroactive tampering is detectable
+- Audit logs fire even from direct console access — impossible to bypass
 
-| Capability | Description |
-|------------|-------------|
-| **SERIALIZABLE Isolation** | Highest SQL isolation level to prevent all possible race conditions and phantoms |
-| **Pessimistic Locking** | Uses `SELECT ... FOR UPDATE` to block other transactions from reading/writing the same row during a move |
-| **Rollback Recovery** | Any failure in the multi-step ledger entry triggers an instant 100% database rollback |
-| **Atomic Transfers** | Executes Sender, Receiver, and Transaction Log updates as a single indivisible unit |
+### 🌍 Spatial Impossible-Travel Detection
+- Every transaction optionally carries a GPS `POINT` location (SRID 4326)
+- `trg_impossible_travel` trigger calculates speed between consecutive transactions using `ST_Distance_Sphere`
+- Transactions implying movement faster than 1,200 km/h are blocked at the DB level with `SIGNAL SQLSTATE`
+- All blocked attempts logged to `spatial_fraud_logs` for forensic review
 
----
+### 🤖 Algorithmic Loan Underwriting
+- Heuristic credit scoring based on account balance and 90-day transaction volume
+- Scores below threshold → auto-denied immediately by the algorithm
+- Scores above threshold → `PENDING` state, forwarded to admin for manual sign-off
+- `sp_approve_loan` mints capital via a `NULL`-sender `DEPOSIT` transaction (central bank model)
 
-### 🔍 Feature 2 — Forensic Audit Engine
+### 📅 Scheduled Recurring Transfers
+- `scheduled_transfers` table stores recurring payment rules
+- `sp_process_scheduled_transfers` cursor-based procedure bulk-processes all due payments
+- MySQL Event Scheduler fires every minute — fully automatic, zero app-layer involvement
+- Failed transfers (insufficient funds, frozen account) auto-pause the schedule
 
-A background surveillance system that never sleeps. Using database triggers, Fortress Ledger records every heartbeat of the financial system.
+### 📊 Fraud & Liquidity War Room
+- `vw_fraud_velocity`: accounts with >10 transactions or >$50,000 volume in the last hour
+- `fraud_summary` materialized table refreshed every 60 seconds via scheduled event
+- `vw_global_liquidity`: total circulating capital across all active accounts
+- Admin instant kill-switch to freeze any account
 
-| Capability | Description |
-|------------|-------------|
-| **`AFTER UPDATE` Triggers** | Automatically fires on any balance change, bypassing application code entirely |
-| **Immutable Logs** | Audit records are stored in a separate table with zero DELETE permissions for the application user |
-| **State Snapshots** | Captures `old_value` and `new_value` for every modified row for point-in-time recovery analysis |
-| **Admin Traceability** | Logs the `admin_id` responsible for manual freezes or overrides |
-
----
-
-### 📊 Feature 3 — Fraud & Liquidity War Room
-
-A high-fidelity administrative dashboard providing situational awareness for security officers.
-
-| Capability | Description |
-|------------|-------------|
-| **Fraud Velocity View** | SQL Window Functions calculate transactions per minute to flag bot activity |
-| **Global Liquidity Scan** | Real-time aggregation of total circulating capital vs. reserved assets |
-| **Real-Time Visualization** | Recharts `AreaChart` and `BarChart` for volume trend analysis |
-| **Instant Kill-Switch** | Admin can `FREEZE` any account instantly, blocking all incoming/outgoing transfers |
-| **Audit Navigator** | Searchable forensic timeline of all system-wide financial movements |
-
----
-
-### 🔐 Feature 4 — Multi-Layered Security (RBAC)
-
-Enterprise-grade access control ensuring that even with a breach, the core data remains protected.
-
-| Capability | Description |
-|------------|-------------|
-| **JWT Http-Only Cookies** | Tokens stored in non-JS-accessible cookies to prevent XSS attacks |
-| **Role-Based Access** | Strictly segregated routes for `CUSTOMER` vs. `ADMIN` roles |
-| **Password Hashing** | Argon2/Bcrypt hash-and-salt methodology for all credentials |
-| **Rate Limiting** | brute-force protection on all auth and banking endpoints |
+### 📋 Monthly Statement Engine
+- `sp_generate_monthly_statement` uses a cursor to build a running balance row by row
+- Opening balance reconstructed from all prior transaction history
+- Statement written to `monthly_statements` table and returned in a single procedure call
 
 ---
 
 ## 🛠️ Tech Stack
 
-### Frontend
-
-![React](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)
-![Recharts](https://img.shields.io/badge/Recharts-Analytics-22B5BF?style=flat-square)
-![Framer Motion](https://img.shields.io/badge/Framer_Motion-Dark_UI-0055FF?style=flat-square&logo=framer&logoColor=white)
-
-### Backend
-
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white)
-![Express.js](https://img.shields.io/badge/Express.js-000000?style=flat-square&logo=express&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL_8.0-4479A1?style=flat-square&logo=mysql&logoColor=white)
-![JWT](https://img.shields.io/badge/JWT-Secure_Auth-000000?style=flat-square&logo=jsonwebtokens&logoColor=white)
-
 | Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Frontend Framework** | React 18 + Vite | Fast Dashboard — sub-millisecond page transitions |
-| **Styling** | Tailwind CSS | Slate-900 "Midnight" palette with Emerald-600 accents |
+|---|---|---|
+| **Frontend** | React 18 + Vite | Fast SPA with sub-millisecond transitions |
+| **Styling** | Tailwind CSS | Midnight dark palette with Emerald accents |
 | **Charts** | Recharts | Real-time liquidity and fraud velocity graphs |
-| **Animations** | Framer Motion | Smooth state transitions and SVG typewriters |
-| **Backend** | Node.js + Express | REST server with manual transaction pool |
-| **Database** | MySQL 8.0 | ACID-compliant relational core with triggers & views |
-| **ORM/Driver** | mysql2/promise | High-performance async connection pooling |
-| **Authentication** | JSON Web Tokens | Role-specific access with 1h TTL |
+| **Animations** | Framer Motion | Smooth state transitions |
+| **Backend** | Node.js + Express | REST API with manual transaction management |
+| **Database** | MySQL 8.0 | ACID-compliant core with triggers, procedures, events |
+| **DB Driver** | mysql2/promise | High-performance async connection pooling |
+| **Auth** | JSON Web Tokens | Role-specific access, 1h TTL, HttpOnly cookies |
 
 ---
 
 ## 🏗️ System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         CLIENT LAYER (React)                    │
-├──────────────┬──────────────┬──────────────┬────────────────────┤
-│ Customer Pan │ Admin Console│ Fraud Radar  │ Forensic Audit UI  │
-└──────┬───────┴──────┬───────┴──────┬───────┴────────┬───────────┘
-       │              │              │                │
-       ▼              ▼              ▼                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    EXPRESS BACKEND (Node.js)                     │
-│                                                                 │
-│  /api/auth       /api/banking       /api/admin                  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  AtomicTransfer.js — Logic Layer                         │  │
-│  │  Lock → Validate → Update S → Update R → Commit          │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────┐   ┌─────────────────────────────────┐   │
-│  │  Middleware       │   │  DB Connection Pool             │   │
-│  │  (Auth / RBAC)    │   │  mysql2/promise                 │   │
-│  └───────────────────┘   └─────────────────────────────────┘   │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │  SQL Protocol
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     DATABASE LAYER (MySQL)                      │
-│                                                                 │
-│  ┌─ Tables ─────────────────┐  ┌─ Objects ────────────────────┐ │
-│  │  users, accounts         │  │  trg_audit_balance (Trigger) │ │
-│  │  transactions            │  │  vw_fraud_velocity (View)    │ │
-│  │  audit_logs              │  │  sp_monthly_stmt (Procedure) │ │
-│  └──────────────────────────┘  └──────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                       CLIENT LAYER (React)                       │
+├───────────────┬──────────────┬───────────────┬───────────────────┤
+│  Landing.jsx  │ Dashboard.jsx│   Admin.jsx   │ AdminUserDetail   │
+│  Login.jsx    │ Profile.jsx  │               │ .jsx              │
+└──────┬────────┴──────┬───────┴──────┬────────┴────────┬──────────┘
+       │               │              │                 │
+       ▼               ▼              ▼                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    EXPRESS BACKEND (Node.js)                      │
+│                                                                  │
+│  /api/auth      /api/banking      /api/admin      /api/profile   │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Middleware: authMiddleware → rateLimiter → validate      │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  authController   bankingController   adminController            │
+│  profileController                                               │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │  mysql2/promise pool
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      DATABASE LAYER (MySQL 8)                    │
+│                                                                  │
+│  Tables: users, accounts, transactions, audit_logs, loans,       │
+│          scheduled_transfers, spatial_fraud_logs,                │
+│          fraud_summary, monthly_statements                       │
+│                                                                  │
+│  Triggers: trg_audit_chain_hash, trg_audit_accounts_update,      │
+│            trg_audit_accounts_insert, trg_audit_transactions,    │
+│            trg_audit_users_insert/update, trg_impossible_travel  │
+│                                                                  │
+│  Procedures: sp_atomic_transfer, sp_generate_monthly_statement,  │
+│              sp_process_scheduled_transfers, sp_request_loan,    │
+│              sp_approve_loan                                     │
+│                                                                  │
+│  Views: vw_fraud_velocity, vw_global_liquidity,                  │
+│         vw_customer_accounts, vw_customer_transactions           │
+│                                                                  │
+│  Events: evt_refresh_fraud_stats, evt_process_scheduled_transfers│
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -213,75 +156,91 @@ Enterprise-grade access control ensuring that even with a breach, the core data 
 ## 📁 Project Structure
 
 ```
-FortressLedger/
-├── client/                                  # ⚛️ React 18 Frontend
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Navbar.jsx                   # 🧭 Logo, Navigation, Role-based links
-│   │   │   ├── BalanceCard.jsx              # 💳 Real-time balance SVG card
-│   │   │   ├── TransactionList.jsx          # 📜 Recent activity table
-│   │   │   ├── AdminDashboard.jsx           # 🛡️ Global stats & fraud radar
-│   │   │   ├── FraudAlerts.jsx              # 🚩 Flagged high-velocity accounts
-│   │   │   └── AuditTrail.jsx               # 🔍 Forensic log explorer
-│   │   ├── context/
-│   │   │   ├── AuthContext.jsx              # 🔐 global login/role state
-│   │   │   └── SocketContext.jsx            # 📡 Real-time updates
-│   │   ├── pages/
-│   │   │   ├── Dashboard.jsx                # Main landing for customers
-│   │   │   ├── Login.jsx                    # Secure entry
-│   │   │   └── Admin.jsx                    # Security "War Room"
-│   │   └── index.css                        # Tailwind + Proxima-inspired UI
+DBMS - Fortress Ledger/
+├── client/                          # React 18 frontend
+│   ├── public/
+│   │   ├── favicon.svg
+│   │   └── icons.svg
+│   └── src/
+│       ├── api/
+│       │   └── axios.js             # Axios instance with base URL + credentials
+│       ├── components/
+│       │   ├── ui/
+│       │   │   ├── Navbar.jsx       # Role-aware navigation
+│       │   │   ├── Footer.jsx
+│       │   │   ├── GlassCard.jsx    # Reusable glass-morphism card
+│       │   │   └── Loader.jsx
+│       │   ├── BatchTransferModal.jsx
+│       │   ├── LockMatrix.jsx
+│       │   └── ProtectedRoute.jsx   # RBAC route guard
+│       ├── context/
+│       │   ├── AuthContext.jsx      # Global login/role state
+│       │   ├── SocketContext.jsx    # Real-time socket connection
+│       │   └── ThemeContext.jsx
+│       └── pages/
+│           ├── Landing.jsx
+│           ├── Login.jsx
+│           ├── Register.jsx
+│           ├── Dashboard.jsx        # Customer panel
+│           ├── Profile.jsx
+│           ├── Admin.jsx            # Security war room
+│           ├── AdminUserDetail.jsx
+│           └── NotFound.jsx
 │
-├── server/                                  # 🖥️ Node.js + MySQL Backend
+├── server/                          # Node.js + Express backend
 │   ├── config/
-│   │   └── db.js                            # mysql2 connection pooling
+│   │   └── db.js                    # mysql2 connection pool
 │   ├── controllers/
-│   │   ├── authController.js                # Login, Register, JWT Set
-│   │   ├── bankingController.js             # ATOMIC Transfer logic
-│   │   └── adminController.js               # Dashboard & Audit retrieval
+│   │   ├── authController.js        # Login, register, JWT
+│   │   ├── bankingController.js     # Transfers, statements, loans
+│   │   ├── adminController.js       # Dashboard, audit, freeze
+│   │   └── profileController.js    # Profile management
 │   ├── middleware/
-│   │   └── authenticate.js                  # JWT validation & RBAC
+│   │   ├── authMiddleware.js        # JWT validation + RBAC
+│   │   ├── rateLimiter.js           # Brute-force protection
+│   │   ├── validate.js              # Request body validation
+│   │   └── errorHandler.js
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── bankingRoutes.js
 │   │   └── adminRoutes.js
-│   ├── advanced_schema.sql                  # 🏛️ Full Triggers, Views, & Sp's
-│   ├── server.js                            # App entry point
-│   └── package.json
+│   ├── schema.sql                   # ← Full consolidated schema (all phases)
+│   ├── scratch_reset.js             # Drops and rebuilds the entire DB
+│   ├── .env.example
+│   └── server.js                    # App entry point
+│
+├── DBMS_DEEP_DIVE.md                # Engineering reference & viva prep
 └── README.md
 ```
 
 ---
 
-## 🏛️ Database Architecture & Reverse Engineered Diagram
-
-Fortress Ledger's relational integrity is enforced by a strictly normalized schema, optimized for forensic traceability.
+## 🗄️ Database Schema
 
 ```mermaid
 erDiagram
     USERS ||--o{ ACCOUNTS : "owns"
-    USERS ||--o{ SECURITY_EVENTS : "triggers"
-    USERS ||--o{ AUDIT_LOGS : "performed (admin)"
-    ACCOUNTS ||--o{ TRANSACTIONS : "sender/receiver"
+    USERS ||--o{ LOANS : "holds"
+    ACCOUNTS ||--o{ TRANSACTIONS : "sender"
+    ACCOUNTS ||--o{ TRANSACTIONS : "receiver"
+    ACCOUNTS ||--o{ SCHEDULED_TRANSFERS : "initiates"
     ACCOUNTS ||--o{ MONTHLY_STATEMENTS : "summarized in"
     ACCOUNTS ||--o{ FRAUD_SUMMARY : "monitored for"
 
     USERS {
         VARCHAR(36) id PK
-        VARCHAR(100) full_name
-        VARCHAR(100) email UK
+        VARCHAR(255) email UK
         VARCHAR(255) password_hash
-        ENUM role "ADMIN, CUSTOMER"
-        ENUM status "ACTIVE, LOCKED"
+        ENUM role "ADMIN | CUSTOMER"
         TIMESTAMP created_at
     }
 
     ACCOUNTS {
         VARCHAR(36) id PK
         VARCHAR(36) user_id FK
-        VARCHAR(12) account_no UK
-        DECIMAL balance "CHECK(balance >= 0)"
-        ENUM status "ACTIVE, FROZEN"
+        VARCHAR(20) account_no UK
+        DECIMAL(15_2) balance "CHECK >= 0"
+        ENUM status "ACTIVE | FROZEN"
         TIMESTAMP created_at
     }
 
@@ -289,135 +248,191 @@ erDiagram
         VARCHAR(36) id PK
         VARCHAR(36) sender_id FK
         VARCHAR(36) receiver_id FK
-        DECIMAL amount
-        ENUM type "TRANSFER, DEPOSIT, WITHDRAWAL"
-        VARCHAR(255) description
-        ENUM status "PENDING, SUCCESS, FAILED"
+        DECIMAL(15_2) amount
+        ENUM type "TRANSFER | DEPOSIT | WITHDRAWAL"
+        POINT location "SRID 4326 nullable"
         TIMESTAMP created_at
     }
 
     AUDIT_LOGS {
         INT id PK
-        VARCHAR(50) entity_type
         VARCHAR(36) entity_id
+        VARCHAR(20) entity_type
         VARCHAR(50) action
-        JSON old_value
-        JSON new_value
-        VARCHAR(36) admin_id FK
-        TIMESTAMP created_at
+        TEXT old_value "JSON"
+        TEXT new_value "JSON"
+        VARCHAR(36) changed_by
+        VARCHAR(64) chain_hash
+        TIMESTAMP timestamp
     }
 
-    SECURITY_EVENTS {
-        INT id PK
+    LOANS {
+        CHAR(36) id PK
         VARCHAR(36) user_id FK
-        VARCHAR(50) event_type "LOGIN_FAIL, SUSPICIOUS_IP"
-        VARCHAR(45) ip_address
-        TEXT user_agent
-        TIMESTAMP created_at
+        DECIMAL(15_2) amount
+        DECIMAL(5_2) interest_rate
+        ENUM status "PENDING | APPROVED | DENIED | REPAID"
+        VARCHAR(255) reason
+        DATETIME created_at
+    }
+
+    SCHEDULED_TRANSFERS {
+        INT id PK
+        VARCHAR(36) sender_id FK
+        VARCHAR(20) receiver_account
+        DECIMAL(15_2) amount
+        INT interval_days
+        DATETIME next_execution
+        ENUM status "ACTIVE | PAUSED"
+    }
+
+    SPATIAL_FRAUD_LOGS {
+        INT id PK
+        VARCHAR(36) user_id
+        CHAR(36) attempted_tx_id
+        POINT previous_location
+        POINT attempted_location
+        DECIMAL(10_2) calculated_speed_kmh
+        DATETIME created_at
+    }
+
+    FRAUD_SUMMARY {
+        INT id PK
+        VARCHAR(36) sender_id
+        VARCHAR(20) account_no
+        INT tx_count
+        DECIMAL(15_2) total_volume
+        TIMESTAMP window_start
+        TIMESTAMP refreshed_at
     }
 
     MONTHLY_STATEMENTS {
         INT id PK
         VARCHAR(36) account_id FK
         VARCHAR(36) tx_id
-        DATE tx_date
-        DECIMAL debit
-        DECIMAL credit
-        DECIMAL running_balance
+        TIMESTAMP tx_date
+        VARCHAR(100) description
+        DECIMAL(15_2) debit
+        DECIMAL(15_2) credit
+        DECIMAL(15_2) running_balance
         VARCHAR(7) statement_period
-    }
-
-    FRAUD_SUMMARY {
-        INT id PK
-        VARCHAR(36) sender_id FK
-        VARCHAR(12) account_no
-        INT tx_count
-        DECIMAL total_volume
-        TIMESTAMP window_start
     }
 ```
 
 ---
 
-## 🔌 API Routes
+## 🔌 API Reference
 
 | Method | Endpoint | Access | Description |
-|--------|----------|:---:|-------------|
-| `POST` | `/api/auth/login` | Public | Auth & set Http-Only cookie |
-| `POST` | `/api/banking/transfer`| Customer| **ATOMIC** transfer with row-locking |
+|---|---|:---:|---|
+| `POST` | `/api/auth/register` | Public | Create account + generate JWT |
+| `POST` | `/api/auth/login` | Public | Authenticate + set HttpOnly cookie |
+| `POST` | `/api/auth/logout` | Auth | Clear session cookie |
+| `GET` | `/api/banking/dashboard` | Customer | Account balance + recent transactions |
+| `POST` | `/api/banking/transfer` | Customer | Atomic transfer via `sp_atomic_transfer` |
+| `GET` | `/api/banking/statement` | Customer | Monthly statement via cursor procedure |
+| `POST` | `/api/banking/loan/request` | Customer | Submit loan via `sp_request_loan` |
+| `GET` | `/api/profile` | Customer | Profile details |
 | `GET` | `/api/admin/dashboard` | Admin | Global stats from `vw_global_liquidity` |
-| `GET` | `/api/admin/fraud` | Admin | Flagged users from `vw_fraud_velocity` |
-| `PATCH`| `/api/admin/freeze/:id`| Admin | Instant account lock-down |
-| `GET` | `/api/admin/audit` | Admin | Raw forensic log retrieval |
-
----
-
-## 🎨 Design System
-
-Fortress Ledger uses a **"Midnight Professional"** palette—designed to minimize eye strain during forensic analysis while highlighting critical alerts.
-
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--bg-main` | `#0A0F1E` | Main backdrop |
-| `--surface` | `#111827` | Panel background |
-| `--emerald` | `#10B981` | Success / Positive balance |
-| `--danger` | `#EF4444` | Fraud Alert / Frozen / Negative |
-| `--primary` | `#00D4FF` | Branding / Active highlights |
+| `GET` | `/api/admin/fraud` | Admin | Flagged accounts from `fraud_summary` |
+| `GET` | `/api/admin/audit` | Admin | Forensic audit log with chain hash |
+| `PATCH` | `/api/admin/freeze/:id` | Admin | Instant account freeze |
+| `GET` | `/api/admin/loans` | Admin | Pending loan queue |
+| `POST` | `/api/admin/loans/:id/approve` | Admin | Approve via `sp_approve_loan` |
+| `GET` | `/api/admin/users` | Admin | All users with account details |
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Clone & Install
+### Prerequisites
+
+- Node.js 18+
+- MySQL 8.0+ (spatial functions and `ST_Distance_Sphere` required)
+- npm
+
+### 1. Clone the repository
+
 ```bash
 git clone https://github.com/yourusername/fortress-ledger.git
 cd fortress-ledger
-npm run install-all
 ```
 
-### 2. Database Initialization
-1. Create a MySQL database named `fortress_ledger`.
-2. Run the SQL script found in `server/advanced_schema.sql`.
+### 2. Install dependencies
 
-### 3. Environment Setup
-Create a `.env` in the `server/` directory:
+```bash
+# Install server dependencies
+cd server && npm install
+
+# Install client dependencies
+cd ../client && npm install
+```
+
+### 3. Configure environment
+
+Copy `.env.example` to `.env` in the `server/` directory:
+
 ```env
 DB_HOST=localhost
+DB_PORT=3306
 DB_USER=root
 DB_PASS=yourpassword
 DB_NAME=fortress_ledger
-JWT_SECRET=supersecret
+JWT_SECRET=your_super_secret_key_min_32_chars
 PORT=5000
+NODE_ENV=development
 ```
 
-### 4. Launch
+### 4. Initialize the database
+
 ```bash
-# From root
-npm run dev
+# From the server/ directory
+mysql -u root -p < schema.sql
 ```
+
+This single file creates the database, all tables, indexes, triggers, stored procedures, views, and scheduled events in the correct dependency order.
+
+### 5. (Optional) Reset to a clean state
+
+```bash
+# From the server/ directory
+node scratch_reset.js
+```
+
+This drops and fully rebuilds the `fortress_ledger` database. Useful between demo runs.
+
+### 6. Start the application
+
+```bash
+# Terminal 1 — backend
+cd server && npm run dev
+
+# Terminal 2 — frontend
+cd client && npm run dev
+```
+
+The client runs at `http://localhost:5173`, the server at `http://localhost:5000`.
 
 ---
 
-## 🏆 The Pitch in One Line
+## 🎨 Design System
+
+| Token | Hex | Usage |
+|---|---|---|
+| `--bg-main` | `#0A0F1E` | Main backdrop |
+| `--surface` | `#111827` | Panel / card background |
+| `--emerald` | `#10B981` | Positive balance, success states |
+| `--danger` | `#EF4444` | Fraud alert, frozen, negative |
+| `--primary` | `#00D4FF` | Branding, active highlights |
+
+---
+
+## 🏆 In One Line
 
 > **"Every app lets you move data. Fortress Ledger ensures you never lose the truth."**
-
-`MERN` · `MySQL` · `ACID Compliant` · `Forensic Quality`
 
 ---
 
 ## 📄 License
 
-This project is available under the [MIT License](LICENSE).
-
----
-
-## 👨‍💻 Team
-
-<div align="center">
-
-**Built with ❤️ for Financial Integrity**
-
-[![GitHub](https://img.shields.io/badge/GitHub-Project-181717?style=for-the-badge&logo=github)](https://github.com/yourusername)
-
-</div>
+MIT — see [LICENSE](LICENSE).
